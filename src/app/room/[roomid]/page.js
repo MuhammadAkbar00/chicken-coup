@@ -76,59 +76,40 @@ export default function Home() {
     return (
         <div className="flex flex-col items-center justify-center min-h-screen py-2 bg-black-100">
             <h1 className="text-4xl font-bold mb-8">Rock-Paper-Scissors-Dragon-Ant</h1>
-            {!inRoom && (
-                <div className="mb-8">
-                    <input
-                        type="text"
-                        placeholder="Enter room code"
-                        value={roomCode}
-                        onChange={(e) => setRoomCode(e.target.value)}
-                        className="px-4 py-2 rounded-lg border-2 border-blue-500"
-                    />
-                    <button
-                        onClick={() => joinRoom(roomCode)}
-                        className="ml-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-700"
-                    >
-                        Join Room
-                    </button>
+            <div>
+                <div className="flex space-x-4">
+                    {choices.map((c) => (
+                        <button
+                            key={c}
+                            onClick={() => handleChoice(c)}
+                            disabled={!!choice}
+                            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                        >
+                            {c.charAt(0).toUpperCase() + c.slice(1)}
+                        </button>
+                    ))}
                 </div>
-            )}
-            {inRoom && (
-                <div>
-                    <div className="flex space-x-4">
-                        {choices.map((c) => (
-                            <button
-                                key={c}
-                                onClick={() => handleChoice(c)}
-                                disabled={!!choice}
-                                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                            >
-                                {c.charAt(0).toUpperCase() + c.slice(1)}
-                            </button>
-                        ))}
+                {choice && <p className="mt-4 text-xl">You chose: {choice}</p>}
+                {result && (
+                    <div className="mt-8 p-4 border rounded-lg bg-white shadow-md">
+                        <h2 className="text-2xl font-semibold mb-4">{result}</h2>
+                        <p>Your choice: {players[socket.id]?.choice}</p>
+                        <p>Opponent's choice: {players[Object.keys(players).find((id) => id !== socket.id)]?.choice}</p>
+                        <button
+                            onClick={rematch}
+                            className="mt-4 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-700"
+                        >
+                            Rematch
+                        </button>
+                        <button
+                            onClick={exitRoom}
+                            className="mt-4 ml-4 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-700"
+                        >
+                            Exit Room
+                        </button>
                     </div>
-                    {choice && <p className="mt-4 text-xl">You chose: {choice}</p>}
-                    {result && (
-                        <div className="mt-8 p-4 border rounded-lg bg-white shadow-md">
-                            <h2 className="text-2xl font-semibold mb-4">{result}</h2>
-                            <p>Your choice: {players[socket.id]?.choice}</p>
-                            <p>Opponent's choice: {players[Object.keys(players).find((id) => id !== socket.id)]?.choice}</p>
-                            <button
-                                onClick={rematch}
-                                className="mt-4 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-700"
-                            >
-                                Rematch
-                            </button>
-                            <button
-                                onClick={exitRoom}
-                                className="mt-4 ml-4 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-700"
-                            >
-                                Exit Room
-                            </button>
-                        </div>
-                    )}
-                </div>
-            )}
+                )}
+            </div>
         </div>
     );
 }
