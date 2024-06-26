@@ -28,6 +28,8 @@ app.prepare().then(() => {
   const httpServer = http.createServer(server);
   const io = new Server(httpServer);
 
+  const PORT = process.env.PORT || 3000;
+
   const maxPlayersPerRoom = 2; // Maximum players per room
   let players = {};
   let rooms = {};
@@ -111,8 +113,8 @@ app.prepare().then(() => {
 
   server.all('*', (req, res) => handle(req, res));
 
-  httpServer.listen(3000, (err) => {
+  httpServer.listen(PORT, (err) => {
     if (err) throw err;
-    console.log('> Ready on http://localhost:3000');
+    console.log(`> Ready on http://localhost:${PORT}`);
   });
 });
