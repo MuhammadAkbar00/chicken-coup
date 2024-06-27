@@ -101,12 +101,13 @@ const RoomPage = ({ params }) => {
                 {result && (
                     <div className="mt-8 p-4 border rounded-lg bg-white shadow-md">
                         <h2 className="text-2xl font-semibold mb-4">{result}</h2>
-                        <p>Your choice: {players[socket.id]?.choice}</p>
-                        <p>Opponent's choice: {players[Object.keys(players).find((id) => id !== socket.id)]?.choice}</p>
+                        <p>Your choice: {players.find(player => player.id === socket.id)?.choice}</p>
+                        <p>Opponent's choice: {players.find(player => player.id !== socket.id)?.choice}</p>
                         <div className="mt-4">
+                            {console.log(scores, 'scores')}
                             <h3 className="text-lg font-semibold">Scores:</h3>
-                            <p>{players[socket.id]?.name}: {scores[socket.id]}</p>
-                            <p>{players[Object.keys(players).find((id) => id !== socket.id)]?.name}: {scores[Object.keys(players).find((id) => id !== socket.id)]}</p>
+                            <p>{players.find(player => player.id === socket.id)?.name}: {scores[Object.keys(scores).find((id) => id === socket.id)]}</p>
+                            <p>{players.find(player => player.id !== socket.id)?.name}: {scores[Object.keys(scores).find((id) => id !== socket.id)]}</p>
                         </div>
                         <button
                             onClick={rematch}
