@@ -1,76 +1,84 @@
-"use client"
-import { useEffect, useState } from 'react';
-import { io } from 'socket.io-client';
+"use client";
+
+import React, { useEffect, useState } from 'react';
+import { useSocket } from '@/context/socketContext';
+import { useRouter } from 'next/navigation';
 
 const choices = ["rock", "paper", "scissors", "dragon", "ant"];
 
-export default function Home() {
-    const [socket, setSocket] = useState(null);
+const RoomPage = ({ params }) => {
+    const socket = useSocket();
+    const router = useRouter();
+    const roomCode = params.roomcode;
     const [choice, setChoice] = useState("");
     const [result, setResult] = useState("");
     const [players, setPlayers] = useState({});
-    const [roomCode, setRoomCode] = useState("");
-    const [inRoom, setInRoom] = useState(false);
+    const [scores, setScores] = useState({});
+    const [rematchRequested, setRematchRequested] = useState(false);
+    const [opponentRematchRequested, setOpponentRematchRequested] = useState(false);
+    const [opponentExited, setOpponentExited] = useState(false);
 
     useEffect(() => {
-        const newSocket = io();
-        setSocket(newSocket);
+        if (!socket) return;
 
-        newSocket.on('result', ({ winnerId, players }) => {
+        socket.on('result', ({ winnerId, players, scores }) => {
             setPlayers(players);
-            setResult(winnerId === newSocket.id ? "You win!" : winnerId === "draw" ? "It's a draw!" : "You lose!");
+            setScores(scores);
+            setResult(winnerId === socket.id ? "You win!" : winnerId === "draw" ? "It's a draw!" : "You lose!");
         });
 
-        newSocket.on('player-joined', ({ roomcode, players }) => {
-            setPlayers(players);
-            setInRoom(true);
-        });
-
-        newSocket.on('player-left', ({ players }) => {
+        socket.on('player-left', ({ playerId, players }) => {
             setPlayers(players);
             setResult("Opponent left the game.");
         });
 
-        newSocket.on('start-game', ({ roomcode }) => {
+        socket.on('start-game', (roomcode) => {
             setChoice("");
             setResult("");
-            setRoomCode(roomcode);
+            setRematchRequested(false);
+            setOpponentRematchRequested(false);
         });
 
-        newSocket.on('rematch', ({ roomcode }) => {
+        socket.on('rematch', (roomcode) => {
             setChoice("");
             setResult("");
+        });
+
+        socket.on('rematch-requested', ({ playerId }) => {
+            if (playerId !== socket.id) {
+                setOpponentRematchRequested(true);
+            }
+        });
+
+        socket.on('player-exit', ({ playerId }) => {
+            if (playerId !== socket.id) {
+                setOpponentExited(true);
+            }
         });
 
         return () => {
-            if (newSocket) {
-                newSocket.emit('exit-room', roomCode);
-                newSocket.disconnect();
-            }
+            socket.off('result');
+            socket.off('player-left');
+            socket.off('start-game');
+            socket.off('rematch');
+            socket.off('rematch-requested');
+            socket.off('player-exit');
         };
-    }, [roomCode]);
+    }, [socket]);
 
     const handleChoice = (choice) => {
         setChoice(choice);
         socket.emit('choose', choice);
     };
 
-    const joinRoom = (roomcode) => {
-        socket.emit('join-room', roomcode);
-        setRoomCode(roomcode);
-    };
-
     const rematch = () => {
+        setRematchRequested(true);
         socket.emit('rematch', roomCode);
     };
 
     const exitRoom = () => {
         socket.emit('exit-room', roomCode);
-        setInRoom(false);
-        setRoomCode("");
-        setChoice("");
-        setResult("");
-        setPlayers({});
+        router.push('/');
     };
 
     return (
@@ -95,11 +103,17 @@ export default function Home() {
                         <h2 className="text-2xl font-semibold mb-4">{result}</h2>
                         <p>Your choice: {players[socket.id]?.choice}</p>
                         <p>Opponent's choice: {players[Object.keys(players).find((id) => id !== socket.id)]?.choice}</p>
+                        <div className="mt-4">
+                            <h3 className="text-lg font-semibold">Scores:</h3>
+                            <p>{players[socket.id]?.name}: {scores[socket.id]}</p>
+                            <p>{players[Object.keys(players).find((id) => id !== socket.id)]?.name}: {scores[Object.keys(players).find((id) => id !== socket.id)]}</p>
+                        </div>
                         <button
                             onClick={rematch}
                             className="mt-4 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-700"
+                            disabled={rematchRequested}
                         >
-                            Rematch
+                            {rematchRequested ? "Waiting for opponent..." : "Rematch"}
                         </button>
                         <button
                             onClick={exitRoom}
@@ -107,9 +121,13 @@ export default function Home() {
                         >
                             Exit Room
                         </button>
+                        {opponentRematchRequested && !rematchRequested && <p className="mt-2 text-red-500">Opponent wants a rematch!</p>}
+                        {opponentExited && <p className="mt-2 text-red-500">Opponent exited the game.</p>}
                     </div>
                 )}
             </div>
         </div>
     );
-}
+};
+
+export default RoomPage;

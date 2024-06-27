@@ -1,52 +1,58 @@
-"use client"
+"use client";
 
 import { useRouter } from 'next/navigation';
-// RoomEntry.js
 import React, { useState, useEffect } from 'react';
-import io from 'socket.io-client';
-
-const socket = io(); // Connect to the default server URL (assuming it's running on the same server)
+import { useSocket } from '@/context/socketContext';
 
 const RoomEntry = () => {
-  const router = useRouter()
+  const router = useRouter();
+  const socket = useSocket();
   const [roomCode, setRoomCode] = useState('');
+  const [playerName, setPlayerName] = useState('');
   const [players, setPlayers] = useState([]);
 
   useEffect(() => {
-    socket.on('player-joined', ({ playerId, roomcode, players }) => {
-      console.log(`Player ${playerId} joined room ${roomcode}`);
-      console.log(players, 'players ')
+    if (!socket) return;
+
+    socket.on('player-joined', ({ player, players }) => {
       setPlayers(players);
     });
 
-    socket.on('start-game', ({ roomcode }) => {
-      console.log(`Starting game in room ${roomcode}`);
-      // Navigate to game start or update UI for game start
-      // Example: history.push(`/room/${roomcode}/game`);
-      router.push(`room/${roomcode}`)
+    socket.on('start-game', (roomcode) => {
+      router.push(`room/${roomcode}`);
     });
 
     return () => {
       socket.off('player-joined');
       socket.off('start-game');
     };
-  }, [players]); // Add players to the dependency array to update useEffect properly
+  }, [socket, router]);
 
   const handleJoinRoom = () => {
-    socket.emit('join-room', roomCode);
-    console.log(`Joining room ${roomCode}`);
+    if (playerName && roomCode) {
+      socket.emit('join-room', { roomCode, playerName });
+    }
   };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen py-6 bg-gray-100">
       <div className="max-w-md w-full bg-white p-8 rounded-lg shadow-md">
-        <h2 className="text-2xl font-semibold mb-6">Enter Room Code</h2>
+        <h2 className="text-2xl font-semibold mb-6">Enter Room Code and Name</h2>
         <div className="mb-4">
           <input
             type="text"
             value={roomCode}
             onChange={(e) => setRoomCode(e.target.value)}
             placeholder="Room code"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+          />
+        </div>
+        <div className="mb-4">
+          <input
+            type="text"
+            value={playerName}
+            onChange={(e) => setPlayerName(e.target.value)}
+            placeholder="Your name"
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
           />
         </div>
@@ -60,8 +66,8 @@ const RoomEntry = () => {
           <div className="mt-4">
             <h3 className="text-xl font-semibold mb-2">Players in the room:</h3>
             <ul>
-              {players.map((playerId) => (
-                <li key={playerId}>Player {playerId}</li>
+              {players.map((player) => (
+                <li key={player.id}>Player {player.name}</li>
               ))}
             </ul>
           </div>
@@ -72,4 +78,3 @@ const RoomEntry = () => {
 };
 
 export default RoomEntry;
-

@@ -34,11 +34,10 @@ app.prepare().then(() => {
   const PORT = process.env.PORT || 3000;
 
   const maxPlayersPerRoom = 2; // Maximum players per room
-  let players = {};
   let rooms = {};
 
   function startGame(roomcode) {
-    io.to(roomcode).emit('start-game', { roomcode });
+    io.to(roomcode).emit('start-game', roomcode);
     console.log(`Starting game in room ${roomcode}`);
   }
 
@@ -46,66 +45,91 @@ app.prepare().then(() => {
     console.log('a user connected:', socket.id);
 
     socket.on('choose', (choice) => {
-      players[socket.id] = { id: socket.id, choice };
-      if (Object.keys(players).length === 2) {
-        const [player1, player2] = Object.values(players);
-        const winnerId = getResult(player1, player2);
-        io.emit('result', { winnerId, players });
-        players = {};
+      const room = Object.values(rooms).find(r => r.players.some(p => p.id === socket.id));
+      if (room) {
+        const player = room.players.find(p => p.id === socket.id);
+        player.choice = choice;
+
+        if (room.players.every(p => p.choice)) {
+          const [player1, player2] = room.players;
+          const winnerId = getResult(player1, player2);
+          if (winnerId !== "draw") {
+            room.scores[winnerId]++;
+          }
+          io.to(room.code).emit('result', { winnerId, players: room.players, scores: room.scores });
+          room.players.forEach(p => p.choice = null); // Reset choices
+        }
       }
     });
 
-    socket.on('join-room', (roomcode) => {
-      if (!rooms[roomcode]) {
-        rooms[roomcode] = {
+    socket.on('join-room', ({ roomCode, playerName }) => {
+      if (!rooms[roomCode]) {
+        rooms[roomCode] = {
+          code: roomCode,
           players: [],
+          scores: {}
         };
       }
 
-      if (rooms[roomcode].players.length < maxPlayersPerRoom) {
-        rooms[roomcode].players.push(socket.id);
-        socket.join(roomcode);
+      if (rooms[roomCode].players.length < maxPlayersPerRoom) {
+        const newPlayer = { id: socket.id, name: playerName, choice: null };
+        rooms[roomCode].players.push(newPlayer);
+        rooms[roomCode].scores[socket.id] = 0; // Initialize score
 
-        io.to(roomcode).emit('player-joined', { playerId: socket.id, roomcode, players: rooms[roomcode].players });
+        socket.join(roomCode);
+        io.to(roomCode).emit('player-joined', { player: newPlayer, players: rooms[roomCode].players });
 
-        if (rooms[roomcode].players.length === maxPlayersPerRoom) {
-          startGame(roomcode);
+        if (rooms[roomCode].players.length === maxPlayersPerRoom) {
+          startGame(roomCode);
         }
       } else {
-        console.log(`Room ${roomcode} is full, cannot join`);
+        socket.emit('room-full', roomCode);
       }
     });
 
-    socket.on('rematch', (roomcode) => {
-      if (rooms[roomcode]) {
-        io.to(roomcode).emit('rematch', { roomcode });
-        startGame(roomcode);
+    socket.on('rematch', (roomCode) => {
+      const room = rooms[roomCode];
+      if (room) {
+        if (!room.rematchRequests) room.rematchRequests = [];
+        room.rematchRequests.push(socket.id);
+
+        io.to(roomCode).emit('rematch-requested', { playerId: socket.id });
+
+        if (room.rematchRequests.length === maxPlayersPerRoom) {
+          room.rematchRequests = [];
+          io.to(roomCode).emit('rematch', roomCode);
+          startGame(roomCode);
+        }
       }
     });
 
-    socket.on('exit-room', (roomcode) => {
-      if (rooms[roomcode]) {
-        rooms[roomcode].players = rooms[roomcode].players.filter(id => id !== socket.id);
-        socket.leave(roomcode);
-        io.to(roomcode).emit('player-left', { playerId: socket.id, roomcode, players: rooms[roomcode].players });
-        if (rooms[roomcode].players.length === 0) {
-          delete rooms[roomcode];
+    socket.on('exit-room', (roomCode) => {
+      const room = rooms[roomCode];
+      if (room) {
+        room.players = room.players.filter(p => p.id !== socket.id);
+        socket.leave(roomCode);
+        io.to(roomCode).emit('player-left', { playerId: socket.id, players: room.players });
+        if (room.players.length === 0) {
+          delete rooms[roomCode];
+        } else {
+          io.to(roomCode).emit('player-exit', { playerId: socket.id });
         }
       }
     });
 
     socket.on('disconnect', () => {
       console.log('user disconnected:', socket.id);
-      delete players[socket.id];
 
-      Object.keys(rooms).forEach((roomcode) => {
-        const index = rooms[roomcode].players.indexOf(socket.id);
-        if (index !== -1) {
-          rooms[roomcode].players.splice(index, 1);
-          io.to(roomcode).emit('player-left', { playerId: socket.id, roomcode, players: rooms[roomcode].players });
-          console.log(`Player ${socket.id} left room ${roomcode}`);
-          if (rooms[roomcode].players.length === 0) {
-            delete rooms[roomcode];
+      Object.keys(rooms).forEach((roomCode) => {
+        const room = rooms[roomCode];
+        const playerIndex = room.players.findIndex(p => p.id === socket.id);
+        if (playerIndex !== -1) {
+          room.players.splice(playerIndex, 1);
+          io.to(roomCode).emit('player-left', { playerId: socket.id, players: room.players });
+          if (room.players.length === 0) {
+            delete rooms[roomCode];
+          } else {
+            io.to(roomCode).emit('player-exit', { playerId: socket.id });
           }
         }
       });
