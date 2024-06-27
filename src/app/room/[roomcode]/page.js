@@ -1,130 +1,99 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
-import { useSocket } from '@/context/socketContext';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-
-const choices = ["rock", "paper", "scissors", "dragon", "ant"];
+import { useSocket } from '@/context/socketContext';
 
 const RoomPage = ({ params }) => {
+    const { code } = params;
+    const [players, setPlayers] = useState([]);
+    const [scores, setScores] = useState({});
+    const [message, setMessage] = useState('');
     const socket = useSocket();
     const router = useRouter();
-    const roomCode = params.roomcode;
-    const [choice, setChoice] = useState("");
-    const [result, setResult] = useState("");
-    const [players, setPlayers] = useState({});
-    const [scores, setScores] = useState({});
-    const [rematchRequested, setRematchRequested] = useState(false);
-    const [opponentRematchRequested, setOpponentRematchRequested] = useState(false);
-    const [opponentExited, setOpponentExited] = useState(false);
 
     useEffect(() => {
-        if (!socket) return;
+        // if (!localStorage.getItem('name')) {
+        //     router.push('/');
+        // }
 
-        socket.on('result', ({ winnerId, players, scores }) => {
+        socket.emit('join-room', { roomCode: code, playerName: localStorage.getItem('name') });
+
+        socket.on('player-joined', ({ player, players }) => {
             setPlayers(players);
-            setScores(scores);
-            setResult(winnerId === socket.id ? "You win!" : winnerId === "draw" ? "It's a draw!" : "You lose!");
         });
 
         socket.on('player-left', ({ playerId, players }) => {
             setPlayers(players);
-            setResult("Opponent left the game.");
         });
 
-        socket.on('start-game', (roomcode) => {
-            setChoice("");
-            setResult("");
-            setRematchRequested(false);
-            setOpponentRematchRequested(false);
+        socket.on('start-game', () => {
+            setMessage('Game started!');
         });
 
-        socket.on('rematch', (roomcode) => {
-            setChoice("");
-            setResult("");
+        socket.on('result', ({ winnerId, players, scores }) => {
+            setPlayers(players);
+            setScores(scores);
+            setMessage(winnerId === 'draw' ? 'It\'s a draw!' : `${players.find(p => p.id === winnerId).name} wins!`);
         });
 
         socket.on('rematch-requested', ({ playerId }) => {
-            if (playerId !== socket.id) {
-                setOpponentRematchRequested(true);
-            }
+            setMessage(`${players.find(p => p.id === playerId).name} requested a rematch.`);
+        });
+
+        socket.on('rematch', () => {
+            setMessage('Rematch started!');
         });
 
         socket.on('player-exit', ({ playerId }) => {
-            if (playerId !== socket.id) {
-                setOpponentExited(true);
-            }
+            setMessage(`${players.find(p => p.id === playerId).name} left the game.`);
         });
 
         return () => {
-            socket.off('result');
+            socket.off('player-joined');
             socket.off('player-left');
             socket.off('start-game');
-            socket.off('rematch');
+            socket.off('result');
             socket.off('rematch-requested');
+            socket.off('rematch');
             socket.off('player-exit');
         };
-    }, [socket]);
+    }, [code, socket, router, players]);
 
-    const handleChoice = (choice) => {
-        setChoice(choice);
-        socket.emit('choose', choice);
+    const handleRematch = () => {
+        socket.emit('rematch', code);
     };
 
-    const rematch = () => {
-        setRematchRequested(true);
-        socket.emit('rematch', roomCode);
-    };
-
-    const exitRoom = () => {
-        socket.emit('exit-room', roomCode);
+    const handleExit = () => {
+        socket.emit('exit-room', code);
         router.push('/');
     };
 
     return (
-        <div className="flex flex-col items-center justify-center min-h-screen py-2 bg-black-100">
-            <h1 className="text-4xl font-bold mb-8">Rock-Paper-Scissors-Dragon-Ant</h1>
-            <div>
-                <div className="flex space-x-4">
-                    {choices.map((c) => (
-                        <button
-                            key={c}
-                            onClick={() => handleChoice(c)}
-                            disabled={!!choice}
-                            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                        >
-                            {c.charAt(0).toUpperCase() + c.slice(1)}
-                        </button>
-                    ))}
+        <div className="flex flex-col items-center justify-center min-h-screen py-6 bg-gray-100">
+            <div className="max-w-md w-full bg-white p-8 rounded-lg shadow-md">
+                <h2 className="text-2xl font-semibold mb-6">Room: {code}</h2>
+                <div className="mb-4">
+                    <h3 className="text-xl font-semibold">Players:</h3>
+                    <ul>
+                        {players.map((player) => (
+                            <li key={player.id}>{player.name}: {scores[player.id] || 0}</li>
+                        ))}
+                    </ul>
                 </div>
-                {choice && <p className="mt-4 text-xl">You chose: {choice}</p>}
-                {result && (
-                    <div className="mt-8 p-4 border rounded-lg bg-white shadow-md">
-                        <h2 className="text-2xl font-semibold mb-4">{result}</h2>
-                        <p>Your choice: {players[socket.id]?.choice}</p>
-                        <p>Opponent's choice: {players[Object.keys(players).find((id) => id !== socket.id)]?.choice}</p>
-                        <div className="mt-4">
-                            <h3 className="text-lg font-semibold">Scores:</h3>
-                            <p>{players[socket.id]?.name}: {scores[socket.id]}</p>
-                            <p>{players[Object.keys(players).find((id) => id !== socket.id)]?.name}: {scores[Object.keys(players).find((id) => id !== socket.id)]}</p>
-                        </div>
-                        <button
-                            onClick={rematch}
-                            className="mt-4 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-700"
-                            disabled={rematchRequested}
-                        >
-                            {rematchRequested ? "Waiting for opponent..." : "Rematch"}
-                        </button>
-                        <button
-                            onClick={exitRoom}
-                            className="mt-4 ml-4 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-700"
-                        >
-                            Exit Room
-                        </button>
-                        {opponentRematchRequested && !rematchRequested && <p className="mt-2 text-red-500">Opponent wants a rematch!</p>}
-                        {opponentExited && <p className="mt-2 text-red-500">Opponent exited the game.</p>}
-                    </div>
-                )}
+                <p>{message}</p>
+                <button
+                    onClick={handleRematch}
+                    className="w-full bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-700 focus:outline-none focus:bg-green-700 mt-4"
+                >
+                    Rematch
+                </button>
+                <button
+                    onClick={handleExit}
+                    className="w-full bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-700 focus:outline-none focus:bg-red-700 mt-4"
+                >
+                    Exit
+                </button>
             </div>
         </div>
     );

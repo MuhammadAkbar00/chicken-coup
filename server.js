@@ -33,7 +33,7 @@ app.prepare().then(() => {
 
   const PORT = process.env.PORT || 3000;
 
-  const maxPlayersPerRoom = 2; // Maximum players per room
+  const maxPlayersPerRoom = 2;
   let rooms = {};
 
   function startGame(roomcode) {
@@ -57,24 +57,33 @@ app.prepare().then(() => {
             room.scores[winnerId]++;
           }
           io.to(room.code).emit('result', { winnerId, players: room.players, scores: room.scores });
-          room.players.forEach(p => p.choice = null); // Reset choices
+          room.players.forEach(p => p.choice = null);
         }
       }
     });
 
-    socket.on('join-room', ({ roomCode, playerName }) => {
+    socket.on('create-room', (roomCode, playerName, callback) => {
       if (!rooms[roomCode]) {
         rooms[roomCode] = {
           code: roomCode,
-          players: [],
-          scores: {}
+          players: [{ id: socket.id, name: playerName, choice: null }],
+          scores: { [socket.id]: 0 },
+          rematchRequests: []
         };
-      }
 
-      if (rooms[roomCode].players.length < maxPlayersPerRoom) {
+        socket.join(roomCode);
+        callback({ success: true, roomCode });
+        io.emit('room-updated', rooms);
+      } else {
+        callback({ success: false, message: 'Room code already exists. Please choose another one.' });
+      }
+    });
+
+    socket.on('join-room', ({ roomCode, playerName }) => {
+      if (rooms[roomCode] && rooms[roomCode].players.length < maxPlayersPerRoom) {
         const newPlayer = { id: socket.id, name: playerName, choice: null };
         rooms[roomCode].players.push(newPlayer);
-        rooms[roomCode].scores[socket.id] = 0; // Initialize score
+        rooms[roomCode].scores[socket.id] = 0;
 
         socket.join(roomCode);
         io.to(roomCode).emit('player-joined', { player: newPlayer, players: rooms[roomCode].players });
@@ -82,6 +91,7 @@ app.prepare().then(() => {
         if (rooms[roomCode].players.length === maxPlayersPerRoom) {
           startGame(roomCode);
         }
+        io.emit('room-updated', rooms);
       } else {
         socket.emit('room-full', roomCode);
       }
@@ -114,6 +124,7 @@ app.prepare().then(() => {
         } else {
           io.to(roomCode).emit('player-exit', { playerId: socket.id });
         }
+        io.emit('room-updated', rooms);
       }
     });
 
@@ -131,9 +142,18 @@ app.prepare().then(() => {
           } else {
             io.to(roomCode).emit('player-exit', { playerId: socket.id });
           }
+          io.emit('room-updated', rooms);
         }
       });
     });
+  });
+
+  server.get('/api/rooms', (req, res) => {
+    res.json(Object.values(rooms).map(room => ({
+      code: room.code,
+      playerCount: room.players.length,
+      players: room.players.map(player => player.name)
+    })));
   });
 
   server.all('*', (req, res) => handle(req, res));
