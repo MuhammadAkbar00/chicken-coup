@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useSocket } from '@/context/socketContext';
 import { useRouter } from 'next/navigation';
+import axios from 'axios';
 
 const choices = ["rock", "paper", "scissors", "dragon", "ant"];
 
@@ -12,7 +13,7 @@ const RoomPage = ({ params }) => {
     const roomCode = params.roomcode;
     const [choice, setChoice] = useState("");
     const [result, setResult] = useState("");
-    const [players, setPlayers] = useState({});
+    const [players, setPlayers] = useState([]);
     const [scores, setScores] = useState({});
     const [rematchRequested, setRematchRequested] = useState(false);
     const [opponentRematchRequested, setOpponentRematchRequested] = useState(false);
@@ -20,6 +21,32 @@ const RoomPage = ({ params }) => {
 
     useEffect(() => {
         if (!socket) return;
+
+        // Fetch the players from the server
+        const fetchPlayers = async () => {
+            try {
+                fetch(`/api/rooms/${roomCode}/players`)
+                    .then(res => res.json())
+                    .then(data => {
+                        console.log(data, 'data')
+                        setPlayers([...data])
+                        // Check if the current socket ID is in the list of players
+                        if (!data.find(player => player.id === socket.id)) {
+                            router.push('/');
+                        }
+                    })
+                    .catch(err => router.push('/'));
+            } catch (error) {
+                console.error('Failed to fetch players:', error);
+                router.push('/');
+            }
+        };
+
+        fetchPlayers();
+
+        socket.on('player-joined', ({ player, players }) => {
+            setPlayers(players);
+        });
 
         socket.on('result', ({ winnerId, players, scores }) => {
             setPlayers(players);
@@ -64,7 +91,7 @@ const RoomPage = ({ params }) => {
             socket.off('rematch-requested');
             socket.off('player-exit');
         };
-    }, [socket]);
+    }, [socket, roomCode, router]);
 
     const handleChoice = (choice) => {
         setChoice(choice);
@@ -82,52 +109,76 @@ const RoomPage = ({ params }) => {
     };
 
     return (
-        <div className="flex flex-col items-center justify-center min-h-screen py-2 bg-black-100">
-            <h1 className="text-4xl font-bold mb-8">Rock-Paper-Scissors-Dragon-Ant</h1>
-            <div>
-                <div className="flex space-x-4">
-                    {choices.map((c) => (
-                        <button
-                            key={c}
-                            onClick={() => handleChoice(c)}
-                            disabled={!!choice}
-                            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                        >
-                            {c.charAt(0).toUpperCase() + c.slice(1)}
-                        </button>
-                    ))}
-                </div>
-                {choice && <p className="mt-4 text-xl">You chose: {choice}</p>}
-                {result && (
-                    <div className="mt-8 p-4 border rounded-lg bg-white shadow-md">
-                        <h2 className="text-2xl font-semibold mb-4">{result}</h2>
-                        <p>Your choice: {players.find(player => player.id === socket.id)?.choice}</p>
-                        <p>Opponent's choice: {players.find(player => player.id !== socket.id)?.choice}</p>
-                        <div className="mt-4">
-                            {console.log(scores, 'scores')}
-                            <h3 className="text-lg font-semibold">Scores:</h3>
-                            <p>{players.find(player => player.id === socket.id)?.name}: {scores[Object.keys(scores).find((id) => id === socket.id)]}</p>
-                            <p>{players.find(player => player.id !== socket.id)?.name}: {scores[Object.keys(scores).find((id) => id !== socket.id)]}</p>
+        <>
+            {players.length >= 2 ? <div className="flex flex-col items-center justify-center min-h-screen py-2 bg-black-100">
+                <h1 className="text-4xl font-bold mb-8">Rock-Paper-Scissors-Dragon-Ant</h1>
+                <div>
+                    <div className="flex space-x-4">
+                        {choices.map((c) => (
+                            <button
+                                key={c}
+                                onClick={() => handleChoice(c)}
+                                disabled={!!choice}
+                                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                            >
+                                {c.charAt(0).toUpperCase() + c.slice(1)}
+                            </button>
+                        ))}
+                    </div>
+                    {choice && <p className="mt-4 text-xl">You chose: {choice}</p>}
+                    {result && (
+                        <div className="mt-8 p-4 border rounded-lg bg-white shadow-md">
+                            <h2 className="text-2xl font-semibold mb-4">{result}</h2>
+                            <p>Your choice: {players.find(player => player.id === socket.id)?.choice}</p>
+                            <p>Opponent's choice: {players.find(player => player.id !== socket.id)?.choice}</p>
+                            <div className="mt-4">
+                                {console.log(scores, 'scores')}
+                                <h3 className="text-lg font-semibold">Scores:</h3>
+                                <p>{players.find(player => player.id === socket.id)?.name}: {scores[Object.keys(scores).find((id) => id === socket.id)]}</p>
+                                <p>{players.find(player => player.id !== socket.id)?.name}: {scores[Object.keys(scores).find((id) => id !== socket.id)]}</p>
+                            </div>
+                            <button
+                                onClick={rematch}
+                                className="mt-4 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-700"
+                                disabled={rematchRequested}
+                            >
+                                {rematchRequested ? "Waiting for opponent..." : "Rematch"}
+                            </button>
+                            <button
+                                onClick={exitRoom}
+                                className="mt-4 ml-4 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-700"
+                            >
+                                Exit Room
+                            </button>
+                            {opponentRematchRequested && !rematchRequested && <p className="mt-2 text-red-500">Opponent wants a rematch!</p>}
+                            {opponentExited && <p className="mt-2 text-red-500">Opponent exited the game.</p>}
                         </div>
-                        <button
-                            onClick={rematch}
-                            className="mt-4 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-700"
-                            disabled={rematchRequested}
-                        >
-                            {rematchRequested ? "Waiting for opponent..." : "Rematch"}
-                        </button>
-                        <button
+                    )}
+                </div>
+            </div> : <div className="flex flex-col items-center justify-center min-h-screen py-6 bg-gray-100">
+                <div className="max-w-md w-full bg-white p-8 rounded-lg shadow-md">
+                    <h2 className="text-2xl font-semibold mb-6">Room: {roomCode}</h2>
+                    <div className="mb-4">
+                        <h3 className="text-xl font-semibold">Players:</h3>
+                        <ul>
+                            {players?.map((player) => (
+                                <li key={player.id}>{player.name}: {scores[player.id] || 0}</li>
+                            ))}
+                        </ul>
+                    </div>
+                    <p>{result}</p>
+                    {
+                        opponentExited && <button
                             onClick={exitRoom}
                             className="mt-4 ml-4 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-700"
                         >
                             Exit Room
                         </button>
-                        {opponentRematchRequested && !rematchRequested && <p className="mt-2 text-red-500">Opponent wants a rematch!</p>}
-                        {opponentExited && <p className="mt-2 text-red-500">Opponent exited the game.</p>}
-                    </div>
-                )}
-            </div>
-        </div>
+                    }
+
+                </div>
+            </div>}
+        </>
     );
 };
 

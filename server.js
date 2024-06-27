@@ -33,7 +33,7 @@ app.prepare().then(() => {
 
   const PORT = process.env.PORT || 3000;
 
-  const maxPlayersPerRoom = 2; // Maximum players per room
+  const maxPlayersPerRoom = 2;
   let rooms = {};
 
   function startGame(roomcode) {
@@ -62,6 +62,23 @@ app.prepare().then(() => {
       }
     });
 
+    socket.on('create-room', (roomCode, playerName, callback) => {
+      if (!rooms[roomCode]) {
+        rooms[roomCode] = {
+          code: roomCode,
+          players: [{ id: socket.id, name: playerName, choice: null }],
+          scores: { [socket.id]: 0 },
+          rematchRequests: []
+        };
+
+        socket.join(roomCode);
+        callback({ success: true, roomCode });
+        io.emit('room-updated', rooms);
+      } else {
+        callback({ success: false, message: 'Room code already exists. Please choose another one.' });
+      }
+    });
+
     socket.on('join-room', ({ roomCode, playerName }) => {
       if (!rooms[roomCode]) {
         rooms[roomCode] = {
@@ -78,6 +95,7 @@ app.prepare().then(() => {
 
         socket.join(roomCode);
         io.to(roomCode).emit('player-joined', { player: newPlayer, players: rooms[roomCode].players });
+        io.emit('room-updated', rooms);
 
         if (rooms[roomCode].players.length === maxPlayersPerRoom) {
           startGame(roomCode);
@@ -103,6 +121,7 @@ app.prepare().then(() => {
       }
     });
 
+
     socket.on('exit-room', (roomCode) => {
       const room = rooms[roomCode];
       if (room) {
@@ -114,6 +133,7 @@ app.prepare().then(() => {
         } else {
           io.to(roomCode).emit('player-exit', { playerId: socket.id });
         }
+        io.emit('room-updated', rooms);
       }
     });
 
@@ -131,10 +151,26 @@ app.prepare().then(() => {
           } else {
             io.to(roomCode).emit('player-exit', { playerId: socket.id });
           }
+          io.emit('room-updated', rooms);
         }
       });
     });
   });
+
+  server.get('/api/rooms', (req, res) => {
+    res.json(Object.values(rooms).map(room => ({ code: room.code, playerCount: room.players.length })));
+  });
+
+  server.get('/api/rooms/:roomCode/players', (req, res) => {
+    const roomCode = req.params.roomCode;
+    const room = rooms[roomCode];
+    if (room) {
+      res.json(room.players);
+    } else {
+      res.status(404).json({ error: 'Room not found' });
+    }
+  });
+
 
   server.all('*', (req, res) => handle(req, res));
 
