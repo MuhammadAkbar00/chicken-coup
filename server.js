@@ -158,7 +158,7 @@ app.prepare().then(() => {
   });
 
   server.get('/api/rooms', (req, res) => {
-    res.json(Object.values(rooms).map(room => ({ code: room.code, playerCount: room.players.length })));
+    res.json(Object.values(rooms).map(room => ({ code: room.code, playerCount: room.players.length, players: room.players.map(player => player.name) })));
   });
 
   server.get('/api/rooms/:roomCode/players', (req, res) => {

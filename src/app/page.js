@@ -11,7 +11,6 @@ const RoomEntry = () => {
   const [roomCode, setRoomCode] = useState('');
   const socket = useSocket();
   const router = useRouter();
-  const maxPlayersPerRoom = 2
 
   useEffect(() => {
     if (!socket) return;
@@ -19,11 +18,14 @@ const RoomEntry = () => {
     if (isNameSubmitted) {
       fetch('/api/rooms')
         .then(res => res.json())
-        .then(data => setRooms(data))
+        .then(data => {
+          setRooms(data)
+        })
         .catch(err => console.error(err));
     }
 
     socket.on('room-updated', (updatedRooms) => {
+      console.log(updatedRooms, 'updatedRooms')
       setRooms(Object.values(updatedRooms).map(room => ({
         code: room.code,
         playerCount: room.players.length,
@@ -62,9 +64,10 @@ const RoomEntry = () => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen py-6 bg-gray-100">
+    <div className="flex flex-col items-center justify-center min-h-screen py-6">
       {!isNameSubmitted ? (
-        <div className="max-w-md w-full bg-white p-8 rounded-lg shadow-md">
+        <div className="max-w-md w-full bg-card-background p-8 rounded-lg shadow-md">
+          <h1 className="text-4xl font-bold mb-8">Rock Paper Scissors Dragon Ant</h1>
           <h2 className="text-2xl font-semibold mb-6">Enter Your Name</h2>
           <div className="mb-4">
             <input
@@ -72,33 +75,28 @@ const RoomEntry = () => {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Your name"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-black"
             />
           </div>
           <button
             onClick={handleNameSubmit}
-            className="w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:bg-blue-700"
+            className="w-full bg-purple-500 text-white py-2 px-4 rounded-lg hover:bg-purple-700 focus:outline-none focus:bg-purple-700"
           >
             Submit
           </button>
         </div>
       ) : (
-        <div className="max-w-md w-full bg-white p-8 rounded-lg shadow-md">
+        <div className="max-w-md w-full bg-card-background p-8 rounded-lg shadow-md">
+          <h2 className="text-2xl font-semibold mb-4">Welcome, {name}!</h2>
           <div className="mb-4">
             <input
               type="text"
               value={roomCode}
               onChange={(e) => setRoomCode(e.target.value)}
               placeholder="Room code"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-black"
             />
           </div>
-          {/* <button
-            onClick={() => handleJoinRoom(roomCode)}
-            className="w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:bg-blue-700"
-          >
-            Join Room
-          </button> */}
           <button
             onClick={handleCreateRoom}
             className="w-full bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-700 focus:outline-none focus:bg-green-700"
@@ -112,9 +110,10 @@ const RoomEntry = () => {
                 <li key={room.code} className="mb-2">
                   <div className="flex justify-between items-center">
                     <span>{room.code} - {room?.players?.join(', ')}</span>
+                    {console.log(room, 'roomroom')}
                     <button
                       onClick={() => handleJoinRoom(room.code)}
-                      className="bg-blue-500 text-white py-1 px-3 rounded-lg hover:bg-blue-700 focus:outline-none focus:bg-blue-700"
+                      className="bg-purple-500 text-white py-1 px-3 rounded-lg hover:bg-purple-700 focus:outline-none focus:bg-purple-700"
                     >
                       Join
                     </button>

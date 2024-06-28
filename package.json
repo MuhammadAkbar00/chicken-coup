@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "set NODE_ENV=development && nodemon server.js",
+    "dev": "concurrently \"next dev\" \"nodemon server.js\"",
     "build": "next build",
     "start": "set NODE_ENV=production & node server.js",
     "lint": "next lint"
@@ -15,15 +15,18 @@
     "next": "14.2.4",
     "react": "^18",
     "react-dom": "^18",
+    "react-icons": "^5.2.1",
     "socket.io": "^4.7.5",
     "socket.io-client": "^4.7.5"
   },
   "devDependencies": {
+    "concurrently": "^8.2.2",
     "cross-env": "^7.0.3",
     "eslint": "^8",
     "eslint-config-next": "14.2.4",
     "postcss": "^8",
-    "prettier": "3.3.2",
+    "prettier": "^3.3.2",
+    "prettier-plugin-tailwindcss": "^0.6.5",
     "tailwindcss": "^3.4.1"
   }
 }

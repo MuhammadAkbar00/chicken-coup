@@ -2,33 +2,48 @@
 @tailwind components;
 @tailwind utilities;
 
+/* styles/globals.css */
+
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
-}
+  --color-background: #1b1b1b;
+  /* Black background */
+  --color-primary: #ffd700;
+  /* Golden accent color */
+  --color-secondary: #4b0082;
+  /* Purple accent color (adjusted from your previous palette) */
+  --color-accent: #8a2be2;
+  /* Secondary accent color (adjusted from your previous palette) */
+  --color-text: #ffffff;
+  /* White text */
+  --color-text-secondary: #d3d3d3;
+  /* Light gray secondary text */
+  --color-card-background: #292929;
+  /* Dark card background */
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0; */
-
-    --foreground-rgb: 0, 0, 0;
-    --background-start-rgb: 214, 219, 220;
-    --background-end-rgb: 255, 255, 255;
-  }
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))) rgb(var(--background-start-rgb));
+  font-family: 'Poppins', sans-serif;
+  background-color: var(--color-background);
+  color: var(--color-text);
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+button {
+  font-family: 'Poppins', sans-serif;
+  transition: transform 0.2s;
+}
+
+h2 {
+  size: 20px;
+  font-family: 'Poppins', sans-serif;
+  font-weight: bold;
+}
+
+.card {
+  background-color: var(--color-card-background);
+  color: var(--color-text);
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+  transition: transform 0.2s;
 }
