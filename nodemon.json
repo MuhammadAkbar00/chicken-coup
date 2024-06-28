@@ -1,0 +1,8 @@
+{
+    "watch": [
+        "server.js",
+        "pages/**/*",
+        "components/**/*"
+    ],
+    "ext": "js,jsx,json"
+}
