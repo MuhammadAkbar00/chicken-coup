@@ -39,8 +39,17 @@ const RoomEntry = () => {
     }
   }, [isNameSubmitted, socket])
 
+  useEffect(() => {
+    const storedName = sessionStorage.getItem('chickenCoup_userName')
+    if (storedName) {
+      setName(storedName)
+      setIsNameSubmitted(true)
+    }
+  }, [])
+
   const handleNameSubmit = () => {
     if (name) {
+      sessionStorage.setItem('chickenCoup_userName', name)
       setIsNameSubmitted(true)
     }
   }
