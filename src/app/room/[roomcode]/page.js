@@ -184,8 +184,10 @@ const RoomPage = ({ params }) => {
     return icon ? React.cloneElement(icon, { size: 200 }) : null
   }
 
-  const getIcon = (choice) => {
-    return choices.find((item) => item.name === choice)?.icon
+  const getIcon = (playerChoice) => {
+    return choice
+      ? choices.find((item) => item.name === playerChoice)?.icon
+      : choices.find((item) => item.name === choice)?.icon
   }
 
   const handleSendMessage = () => {
@@ -196,9 +198,11 @@ const RoomPage = ({ params }) => {
   }
 
   const renderAnimation = (winnerIconName, loserIconName) => {
+    const winningIconName = winnerIconName || choice
+    const losingIconName = loserIconName || choice
     const isDraw = winnerIconName === loserIconName
-    const winningPlayer = players?.find((player) => player.choice === winnerIconName)
-    const losingPlayer = players?.find((player) => player.choice === loserIconName)
+    const winningPlayer = players?.find((player) => player.choice === winningIconName)
+    const losingPlayer = players?.find((player) => player.choice === losingIconName)
 
     const didPlayerWin = winningPlayer?.id === socket.id
 

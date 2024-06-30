@@ -63,6 +63,7 @@ app.prepare().then(() => {
           if (winnerId !== 'draw') {
             room.scores[winnerId]++
           }
+          console.log(room.players, 'room.players')
           io.to(room.code).emit('result', { winnerId, players: room.players, scores: room.scores })
           room.players.forEach((p) => (p.choice = null)) // Reset choices
         }
