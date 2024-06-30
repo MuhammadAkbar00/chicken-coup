@@ -33,7 +33,6 @@ app.prepare().then(() => {
 
   const maxPlayersPerRoom = 2
   let rooms = {}
-  let currentPlayerName = ''
 
   function startGame(roomcode) {
     io.to(roomcode).emit('start-game', roomcode)

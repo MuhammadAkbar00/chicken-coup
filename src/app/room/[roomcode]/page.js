@@ -18,11 +18,11 @@ const choices = [
 const animationVariantsWin = {
   initial: { x: 0, opacity: 1 },
   player: {
-    x: [0, 1050, 1120],
+    x: ['0vw', '45vw', '45vw'], // Adjusted values using viewport width (vw)
     transition: { duration: 0.7 }
   },
   opponent: {
-    x: [0, -1050, 0],
+    x: ['0vw', '-45vw', '0vw'], // Adjusted values using viewport width (vw)
     opacity: [1, 0],
     transition: { x: { duration: 0.7 }, opacity: { delay: 0.3, duration: 0.4 } }
   }
@@ -31,12 +31,12 @@ const animationVariantsWin = {
 const animationVariantsLose = {
   initial: { x: 0, opacity: 1 },
   player: {
-    x: [0, 1050, 0],
+    x: ['0vw', '45vw', '0vw'], // Adjusted values using viewport width (vw)
     opacity: [1, 0],
     transition: { x: { duration: 0.7 }, opacity: { delay: 0.3, duration: 0.4 } }
   },
   opponent: {
-    x: [0, -1050, -1120],
+    x: ['0vw', '-45vw', '-45vw'], // Adjusted values using viewport width (vw)
     transition: { duration: 0.7 }
   }
 }
@@ -44,10 +44,10 @@ const animationVariantsLose = {
 const animationVariantsDraw = {
   initial: { x: 0 },
   player: {
-    x: [0, 1050, 0]
+    x: ['0vw', '50vw', '0vw'] // Adjusted values using viewport width (vw)
   },
   opponent: {
-    x: [0, -1050, 0],
+    x: ['0vw', '-50vw', '0vw'], // Adjusted values using viewport width (vw)
     transition: { duration: 0.7 }
   }
 }
@@ -91,11 +91,13 @@ const RoomPage = ({ params }) => {
 
     const handlePlayerJoined = ({ players }) => setPlayers(players)
 
-    const handleResult = ({ winnerId, players, scores, winningPair }) => {
+    const handleResult = ({ winnerId, players, scores }) => {
       setPlayers(players)
       setScores(scores)
-      const winnerChoice = players.find((player) => player.id === winnerId)?.choice
-      const loserChoice = players.find((player) => player.id !== winnerId)?.choice
+
+      const isDraw = winnerId === 'draw'
+      const winnerChoice = isDraw ? choice : players.find((player) => player.id === winnerId)?.choice
+      const loserChoice = isDraw ? choice : players.find((player) => player.id !== winnerId)?.choice
 
       setWinningPair({ winner: winnerChoice, loser: loserChoice })
       setResult(winnerId === socket.id ? 'You win!' : winnerId === 'draw' ? "It's a draw!" : 'You lose!')
@@ -135,7 +137,6 @@ const RoomPage = ({ params }) => {
 
     // Listen for new chat messages
     socket.on('chat-message', (message) => {
-      console.log('the message', message)
       setMessages((prevMessages) => [...prevMessages, message])
     })
 
@@ -164,7 +165,6 @@ const RoomPage = ({ params }) => {
   const handleChoice = (choice) => {
     setChoice(choice)
     socket.emit('choose', choice)
-    console.log(`Choice made: ${choice}`)
   }
 
   const handleRematchRequest = () => {
@@ -178,7 +178,7 @@ const RoomPage = ({ params }) => {
   }
 
   const renderPlayerChoice = (playerId) => {
-    const playerChoice = players.find((player) => player.id === playerId)?.choice
+    const playerChoice = result ? players.find((player) => player.id === playerId)?.choice : choice
     const icon = choices.find((item) => item.name === playerChoice)?.icon
 
     return icon ? React.cloneElement(icon, { size: 200 }) : null
@@ -189,7 +189,6 @@ const RoomPage = ({ params }) => {
   }
 
   const handleSendMessage = () => {
-    console.log('this is running,', message)
     if (message.trim() !== '') {
       socket.emit('send-message', { roomCode, message })
       setMessage('')
@@ -246,7 +245,7 @@ const RoomPage = ({ params }) => {
       </div>
 
       {/* Player Choices */}
-      {result && winningPair?.winner && winningPair?.loser ? (
+      {(result && winningPair?.winner && winningPair?.loser) || result?.includes('draw') ? (
         renderAnimation(winningPair.winner, winningPair.loser)
       ) : (
         <div className='h-30 flex items-center justify-between pt-28'>
@@ -262,14 +261,11 @@ const RoomPage = ({ params }) => {
       )}
 
       {/* Result and Room Options */}
-      <div className='flex h-96 flex-1'>
+      <div className='flex h-96 flex-1 justify-center'>
         {result && (
           <div className='flex flex-col items-center pt-12'>
             <div className='mb-6 text-2xl font-semibold'>{result}</div>
             <div className='flex flex-col justify-center'>
-              {opponentRematchRequested && (
-                <div className='pb-6 text-xl font-semibold text-green-500'>Opponent requested a rematch!</div>
-              )}
               <div className='flex justify-center space-x-4'>
                 {!opponentExited && (
                   <button
@@ -291,6 +287,9 @@ const RoomPage = ({ params }) => {
                   Exit Room
                 </button>
               </div>
+              {opponentRematchRequested && (
+                <div className='pt-6 text-xl font-semibold text-green-500'>Opponent requested a rematch!</div>
+              )}
             </div>
           </div>
         )}
