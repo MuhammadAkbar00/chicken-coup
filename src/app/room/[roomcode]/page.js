@@ -18,7 +18,7 @@ const choices = [
 const animationVariantsWin = {
   initial: { x: 0, opacity: 1 },
   player: {
-    x: ['0vw', '45vw', '45vw'], // Adjusted values using viewport width (vw)
+    x: ['0vw', '45vw', '0vw'], // Adjusted values using viewport width (vw)
     transition: { duration: 0.7 }
   },
   opponent: {
@@ -36,7 +36,7 @@ const animationVariantsLose = {
     transition: { x: { duration: 0.7 }, opacity: { delay: 0.3, duration: 0.4 } }
   },
   opponent: {
-    x: ['0vw', '-45vw', '-45vw'], // Adjusted values using viewport width (vw)
+    x: ['0vw', '-45vw', '0vw'], // Adjusted values using viewport width (vw)
     transition: { duration: 0.7 }
   }
 }
@@ -66,6 +66,9 @@ const RoomPage = ({ params }) => {
   const [opponentExited, setOpponentExited] = useState(false)
   const [winningPair, setWinningPair] = useState({ winner: '', loser: '' })
 
+  const [currentPlayer, setCurrentPlayer] = useState({})
+  const [currentOpponent, setCurrentOpponent] = useState({})
+
   const [message, setMessage] = useState('')
   const [messages, setMessages] = useState([])
   const inputRef = useRef(null)
@@ -82,7 +85,9 @@ const RoomPage = ({ params }) => {
           router.push('/')
         }
 
-        setPlayers([...data])
+        const players = [...data]
+
+        setPlayers(movePlayerToFront(players, socket.id))
       } catch (error) {
         console.error('Failed to fetch players:', error)
         router.push('/')
@@ -92,7 +97,7 @@ const RoomPage = ({ params }) => {
     const handlePlayerJoined = ({ players }) => setPlayers(players)
 
     const handleResult = ({ winnerId, players, scores }) => {
-      setPlayers(players)
+      setPlayers(movePlayerToFront(players, socket.id))
       setScores(scores)
 
       const isDraw = winnerId === 'draw'
@@ -103,7 +108,7 @@ const RoomPage = ({ params }) => {
       setResult(winnerId === socket.id ? 'You win!' : winnerId === 'draw' ? "It's a draw!" : 'You lose!')
     }
 
-    const handlePlayerLeft = ({ players }) => setPlayers(players)
+    const handlePlayerLeft = ({ players }) => setPlayers(movePlayerToFront(players, socket.id))
     const handleStartGame = () => {
       setChoice('')
       setResult('')
@@ -162,6 +167,13 @@ const RoomPage = ({ params }) => {
     }
   }, [socket, roomCode, router])
 
+  useEffect(() => {
+    if (players?.length > 0) {
+      setCurrentPlayer(players.find((player) => player.id === socket.id))
+      setCurrentOpponent(players.find((player) => player.id !== socket.id))
+    }
+  }, [players])
+
   const handleChoice = (choice) => {
     setChoice(choice)
     socket.emit('choose', choice)
@@ -197,157 +209,139 @@ const RoomPage = ({ params }) => {
     }
   }
 
+  function movePlayerToFront(players, playerIdToMoveToFront) {
+    const index = players.findIndex((player) => player.id === playerIdToMoveToFront)
+
+    if (index !== -1) {
+      const playerToMove = players.splice(index, 1)[0]
+      players.unshift(playerToMove)
+    }
+
+    return players
+  }
+
   const renderAnimation = (winnerIconName, loserIconName) => {
-    const winningIconName = winnerIconName || choice
-    const losingIconName = loserIconName || choice
     const isDraw = winnerIconName === loserIconName
-    const winningPlayer = players?.find((player) => player.choice === winningIconName)
-    const losingPlayer = players?.find((player) => player.choice === losingIconName)
+    const winningPlayer = players?.find((player) => player.choice === winnerIconName)
 
     const didPlayerWin = winningPlayer?.id === socket.id
 
-    const playerIcon = didPlayerWin ? getIcon(winningPlayer?.choice) : getIcon(losingPlayer?.choice)
-    const opponentIcon = didPlayerWin ? getIcon(losingPlayer?.choice) : getIcon(winningPlayer?.choice)
+    const playerIcon = getIcon(currentPlayer?.choice)
+    const opponentIcon = getIcon(currentOpponent?.choice)
 
     let animationVariants
     if (isDraw) {
       animationVariants = animationVariantsDraw
+      console.log('draw')
     } else if (didPlayerWin === true) {
       animationVariants = animationVariantsWin
+      console.log('win')
     } else if (didPlayerWin === false) {
       animationVariants = animationVariantsLose
+      console.log('lose')
     }
 
     return (
-      <div className='flex items-center justify-between pt-28'>
+      <div className='flex justify-between pt-12 md:pt-28'>
         <motion.div initial='initial' animate='player' variants={animationVariants}>
-          {playerIcon && React.cloneElement(playerIcon, { size: 200 })}
+          {playerIcon && React.cloneElement(playerIcon, { size: 200, color: 'green' })}
         </motion.div>
         <motion.div initial='initial' animate='opponent' variants={animationVariants}>
-          {opponentIcon && React.cloneElement(opponentIcon, { size: 200 })}
+          {opponentIcon && React.cloneElement(opponentIcon, { size: 200, color: 'red' })}
         </motion.div>
       </div>
     )
   }
 
   return (
-    <div className='flex min-h-screen flex-col p-6'>
+    <div className='flex min-h-screen flex-col p-4 md:p-6'>
       {/* Header */}
-      <h1 className='mb-8 text-4xl font-bold text-purple-500'>{roomCode}</h1>
+      <h1 className='text-gold mb-4 text-2xl font-bold md:mb-6 md:text-3xl'>Room Code: {roomCode}</h1>
 
       {/* Scoreboard */}
-      <div className='flex flex-col'>
-        <h2 className='text-center text-2xl'>Scoreboard</h2>
-        <div className='flex justify-between'>
-          {players.map((player) => (
-            <div key={player.id} className='flex flex-col'>
-              <span className='text-xl font-semibold'>{player.name}</span>
-              <span className='text-center text-xl font-semibold'>{scores[player.id] || 0}</span>
-            </div>
-          ))}
-        </div>
+      <div className='text-gold mb-4 flex flex-wrap justify-between rounded-lg bg-[#262626] p-4 md:mb-6'>
+        {players.map((player) => (
+          <div key={player.id} className='mb-2 w-full md:mb-0 md:w-auto'>
+            <span className='font-semibold'>{player.name}:</span> {scores[player.id] || 0}
+          </div>
+        ))}
       </div>
 
-      {/* Player Choices */}
-      {(result && winningPair?.winner && winningPair?.loser) || result?.includes('draw') ? (
-        renderAnimation(winningPair.winner, winningPair.loser)
-      ) : (
-        <div className='h-30 flex items-center justify-between pt-28'>
-          {/* Left Player */}
-          {result ? renderPlayerChoice(socket.id) : choice && renderPlayerChoice(socket.id)}
+      {/* Choices */}
+      <div className='flex flex-wrap justify-center gap-4 md:gap-6'>
+        {choices.map(({ name, icon }) => (
+          <button
+            key={name}
+            className={`rounded-lg bg-[#333] p-4 enabled:cursor-pointer enabled:hover:bg-[#444] ${
+              choice === name ? 'border-gold border-4' : ''
+            }`}
+            onClick={() => handleChoice(name)}
+            disabled={choice || players.length < 2}
+          >
+            {icon}
+          </button>
+        ))}
+      </div>
 
-          {/* Versus */}
-          {result && players.length > 1 && <h1 className='text-4xl font-bold'>VS</h1>}
+      {/* Game Result */}
+      {result && (
+        <div className='text-gold mt-8 flex flex-col md:mt-12'>
+          <h2 className='mb-4 self-center text-2xl font-bold md:text-3xl'>{result}</h2>
+          {renderAnimation(winningPair.winner, winningPair.loser)}
 
-          {/* Right Player */}
-          {result && players.length > 1 && renderPlayerChoice(players.find((player) => player.id !== socket.id)?.id)}
+          {/* Rematch Buttons */}
+          <div className='mt-8 flex flex-wrap gap-4 self-center md:gap-6'>
+            {!rematchRequested && !opponentExited && !opponentRematchRequested && (
+              <button
+                className='rounded-lg bg-purple-600 px-4 py-2 text-white hover:bg-purple-700'
+                onClick={handleRematchRequest}
+              >
+                Request Rematch
+              </button>
+            )}
+            {opponentRematchRequested && (
+              <button
+                className='rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700'
+                onClick={handleRematchRequest}
+              >
+                Accept Rematch
+              </button>
+            )}
+            {opponentExited && (
+              <div className='rounded-lg bg-red-600 px-4 py-2 text-white'>Opponent has left the room</div>
+            )}
+            <button className='rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700' onClick={exitRoom}>
+              Exit Room
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Result and Room Options */}
-      <div className='flex h-96 flex-1 justify-center'>
-        {result && (
-          <div className='flex flex-col items-center pt-12'>
-            <div className='mb-6 text-2xl font-semibold'>{result}</div>
-            <div className='flex flex-col justify-center'>
-              <div className='flex justify-center space-x-4'>
-                {!opponentExited && (
-                  <button
-                    onClick={handleRematchRequest}
-                    className={`w-50 rounded-lg bg-green-500 px-4 py-2 text-white hover:bg-green-700 focus:bg-green-700 focus:outline-none ${rematchRequested ? 'cursor-not-allowed opacity-50' : ''}`}
-                    disabled={rematchRequested}
-                  >
-                    {rematchRequested
-                      ? 'Rematch Requested'
-                      : opponentRematchRequested
-                        ? 'Accept Rematch'
-                        : 'Request Rematch'}
-                  </button>
-                )}
-                <button
-                  onClick={exitRoom}
-                  className={`w-50 rounded-lg bg-red-500 px-4 py-2 text-white hover:bg-red-700 focus:bg-red-700 focus:outline-none`}
-                >
-                  Exit Room
-                </button>
-              </div>
-              {opponentRematchRequested && (
-                <div className='pt-6 text-xl font-semibold text-green-500'>Opponent requested a rematch!</div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Message Box */}
-      <div className='flex max-w-96 flex-col'>
-        <div className='max-h-80 overflow-y-auto'>
+      {/* Chat Box */}
+      <div className='!mt-auto flex flex-col rounded-lg bg-[#262626] p-4 md:mt-12'>
+        <div className='text-gold mb-4 text-lg font-semibold'>Chat</div>
+        <div className='text-gold flex h-64 flex-col-reverse overflow-y-auto rounded-lg bg-[#333] p-4'>
           {messages.map((msg, index) => (
-            <div key={index + 'message-chat'} className='mb-2 rounded bg-gray-800 p-2'>
-              <span className='text-white'>
-                {msg.playerName}: {msg.message}
-              </span>
+            <div key={index} className='mb-2'>
+              <span className='font-semibold'>{msg.sender}:</span> {msg.message}
             </div>
           ))}
         </div>
         <div className='mt-4 flex'>
           <input
-            ref={inputRef}
             type='text'
-            className='flex-1 rounded-l-lg px-4 py-2 text-black focus:outline-none'
-            placeholder='Type your message...'
+            ref={inputRef}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                handleSendMessage()
-              }
-            }}
+            className='flex-grow rounded-lg bg-[#333] px-4 py-2 text-white'
+            placeholder='Type a message...'
           />
           <button
             onClick={handleSendMessage}
-            className='rounded-r-lg bg-blue-500 px-4 py-2 text-white hover:bg-blue-600 focus:bg-blue-600 focus:outline-none'
+            className='ml-2 rounded-lg bg-purple-600 px-4 py-2 text-white hover:bg-purple-700'
           >
             Send
           </button>
-        </div>
-      </div>
-
-      {/* Card Options */}
-      <div className='fixed bottom-0 left-1/2 mb-4 flex -translate-x-1/2 transform flex-col'>
-        {choice && <span className='pb-4 text-center text-3xl text-purple-500'>You chose {choice}</span>}
-        <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'>
-          {choices.map((item) => (
-            <button
-              key={item.name}
-              className={`card ${choice === item.name ? '!translate-y-[-5px] !bg-purple-700' : ''} enabled:hover:translate-y-[-5px] enabled:hover:!bg-purple-700`}
-              onClick={() => handleChoice(item.name)}
-              disabled={choice}
-            >
-              {item.icon}
-              <div className='mt-2'>{item.name.charAt(0).toUpperCase() + item.name.slice(1)}</div>
-            </button>
-          ))}
         </div>
       </div>
     </div>
