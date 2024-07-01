@@ -66,6 +66,18 @@ const RoomEntry = () => {
     }
   }
 
+  const handlePlayWithBots = () => {
+    if (name && roomCode) {
+      socket.emit('create-room', roomCode, name, (response) => {
+        if (response.success) {
+          router.push(`/room/${response.roomCode}`)
+        } else {
+          alert(response.message)
+        }
+      })
+    }
+  }
+
   const handleJoinRoom = (roomCode) => {
     if (name) {
       socket.emit('join-room', { roomCode, playerName: name })
@@ -113,6 +125,20 @@ const RoomEntry = () => {
           >
             Create Room
           </button>
+          <div className='flex gap-2 pt-2'>
+            <button
+              onClick={handleCreateRoom}
+              className='w-full rounded-lg bg-green-500 px-4 py-2 text-white hover:bg-green-700 focus:bg-green-700 focus:outline-none'
+            >
+              Play Easy bot
+            </button>
+            <button
+              onClick={handleCreateRoom}
+              className='w-full rounded-lg bg-green-500 px-4 py-2 text-white hover:bg-green-700 focus:bg-green-700 focus:outline-none'
+            >
+              Play Impossible bot
+            </button>
+          </div>
           <div className='mt-6'>
             <h3 className='mb-4 text-xl font-semibold'>Available Rooms</h3>
             <ul>

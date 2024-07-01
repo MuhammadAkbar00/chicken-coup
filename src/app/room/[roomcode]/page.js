@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import { FaHandRock, FaHandPaper, FaHandScissors, FaDragon } from 'react-icons/fa'
 import { HiBugAnt } from 'react-icons/hi2'
 import { delay, m, motion } from 'framer-motion'
+import { IoMdHeart } from 'react-icons/io'
+import { IoIosHeartEmpty } from 'react-icons/io'
 
 const choices = [
   { name: 'rock', icon: <FaHandRock size={80} /> },
@@ -60,7 +62,7 @@ const RoomPage = ({ params }) => {
   const [choice, setChoice] = useState('')
   const [result, setResult] = useState('')
   const [players, setPlayers] = useState([])
-  const [scores, setScores] = useState({})
+  const [lives, setLives] = useState({})
   const [rematchRequested, setRematchRequested] = useState(false)
   const [opponentRematchRequested, setOpponentRematchRequested] = useState(false)
   const [opponentExited, setOpponentExited] = useState(false)
@@ -94,11 +96,15 @@ const RoomPage = ({ params }) => {
       }
     }
 
-    const handlePlayerJoined = ({ players }) => setPlayers(players)
+    const handlePlayerJoined = ({ players, lives }) => {
+      console.log({ players, lives })
+      setPlayers(players)
+      setLives(lives)
+    }
 
-    const handleResult = ({ winnerId, players, scores }) => {
+    const handleResult = ({ winnerId, players, lives }) => {
       setPlayers(movePlayerToFront(players, socket.id))
-      setScores(scores)
+      setLives(lives)
 
       const isDraw = winnerId === 'draw'
       const winnerChoice = isDraw ? choice : players.find((player) => player.id === winnerId)?.choice
@@ -253,6 +259,20 @@ const RoomPage = ({ params }) => {
     )
   }
 
+  const renderHearts = (numOfLives) => {
+    const totalLives = 10
+    return (
+      <>
+        {Array.from({ length: numOfLives }, (_, i) => (
+          <IoMdHeart key={`full-${i}`} />
+        ))}
+        {Array.from({ length: totalLives - numOfLives }, (_, i) => (
+          <IoIosHeartEmpty key={`empty-${i}`} />
+        ))}
+      </>
+    )
+  }
+
   return (
     <div className='flex min-h-screen flex-col p-4 md:p-6'>
       {/* Header */}
@@ -262,7 +282,8 @@ const RoomPage = ({ params }) => {
       <div className='text-gold mb-4 flex flex-wrap justify-between rounded-lg bg-[#262626] p-4 md:mb-6'>
         {players.map((player) => (
           <div key={player.id} className='mb-2 w-full md:mb-0 md:w-auto'>
-            <span className='font-semibold'>{player.name}:</span> {scores[player.id] || 0}
+            <span className='font-semibold'>{player.name}</span>
+            <div className='flex'>{renderHearts(lives[player.id])}</div>
           </div>
         ))}
       </div>

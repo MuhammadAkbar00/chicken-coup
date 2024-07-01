@@ -19,9 +19,9 @@ const getResult = (player1, player2) => {
   }
 
   if (winsAgainst[player1.choice].includes(player2.choice)) {
-    return player1.id
+    return { winnerId: player1.id, loserId: player2.id }
   }
-  return player2.id
+  return { winnerId: player2.id, loserId: player1.id }
 }
 
 app.prepare().then(() => {
@@ -32,6 +32,7 @@ app.prepare().then(() => {
   const PORT = process.env.PORT || 3000
 
   const maxPlayersPerRoom = 2
+  const startingLives = 10
   let rooms = {}
 
   function startGame(roomcode) {
@@ -59,12 +60,12 @@ app.prepare().then(() => {
 
         if (room.players.every((p) => p.choice)) {
           const [player1, player2] = room.players
-          const winnerId = getResult(player1, player2)
+          const { winnerId, loserId } = getResult(player1, player2)
           if (winnerId !== 'draw') {
-            room.scores[winnerId]++
+            room.lives[loserId]--
           }
           console.log(room.players, 'room.players')
-          io.to(room.code).emit('result', { winnerId, players: room.players, scores: room.scores })
+          io.to(room.code).emit('result', { winnerId, players: room.players, lives: room.lives })
           room.players.forEach((p) => (p.choice = null)) // Reset choices
         }
       }
@@ -76,7 +77,7 @@ app.prepare().then(() => {
           code: roomCode,
           messages: [],
           players: [{ id: socket.id, name: playerName, choice: null }],
-          scores: { [socket.id]: 0 },
+          lives: { [socket.id]: startingLives },
           rematchRequests: []
         }
 
@@ -93,7 +94,7 @@ app.prepare().then(() => {
         rooms[roomCode] = {
           code: roomCode,
           players: [],
-          scores: {},
+          lives: {},
           messages: [],
           rematchRequests: []
         }
@@ -103,10 +104,14 @@ app.prepare().then(() => {
         const newPlayer = { id: socket.id, name: playerName, choice: null }
 
         rooms[roomCode].players.push(newPlayer)
-        rooms[roomCode].scores[socket.id] = 0 // Initialize score
+        rooms[roomCode].lives[socket.id] = startingLives // Initialize lives
 
         socket.join(roomCode)
-        io.to(roomCode).emit('player-joined', { player: newPlayer, players: rooms[roomCode].players })
+        io.to(roomCode).emit('player-joined', {
+          player: newPlayer,
+          players: rooms[roomCode].players,
+          lives: rooms[roomCode].lives
+        })
         io.emit('room-updated', rooms)
 
         if (rooms[roomCode].players.length === maxPlayersPerRoom) {
