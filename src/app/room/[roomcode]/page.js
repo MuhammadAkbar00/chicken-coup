@@ -9,6 +9,8 @@ import { delay, m, motion } from 'framer-motion'
 import { IoMdHeart } from 'react-icons/io'
 import { IoIosHeartEmpty } from 'react-icons/io'
 
+// TODO: Make chat smaller and next to chat is the game log (red if you lose, green if you win and then it shows what you chose and what the opponents chose)
+
 const choices = [
   { name: 'rock', icon: <FaHandRock size={80} /> },
   { name: 'paper', icon: <FaHandPaper size={80} /> },
@@ -76,13 +78,15 @@ const RoomPage = ({ params }) => {
   const [messages, setMessages] = useState([])
   const inputRef = useRef(null)
 
+  const [gameLogs, setGameLogs] = useState([])
+
   useEffect(() => {
     if (!socket) return
 
     const fetchPlayers = async () => {
       try {
         const res = await fetch(`/api/rooms/${roomCode}/players`)
-        const { players, lives } = await res.json()
+        const { players, lives, gameLogs } = await res.json()
 
         if (!players.find((player) => player.id === socket.id)) {
           router.push('/')
@@ -90,20 +94,23 @@ const RoomPage = ({ params }) => {
 
         setPlayers(movePlayerToFront(players, socket.id))
         setLives(lives)
+        setGameLogs(gameLogs)
       } catch (error) {
         console.error('Failed to fetch players:', error)
         router.push('/')
       }
     }
 
-    const handlePlayerJoined = ({ players, lives }) => {
+    const handlePlayerJoined = ({ players, lives, gameLogs }) => {
       setPlayers(players)
       setLives(lives)
+      setGameLogs(gameLogs)
     }
 
-    const handleResult = ({ winnerId, players, lives }) => {
+    const handleResult = ({ winnerId, players, lives, gameLogs }) => {
       setPlayers(movePlayerToFront(players, socket.id))
       setLives(lives)
+      setGameLogs(gameLogs)
 
       const isDraw = winnerId === 'draw'
       const winnerChoice = isDraw ? choice : players.find((player) => player.id === winnerId)?.choice
@@ -117,13 +124,14 @@ const RoomPage = ({ params }) => {
       }, 1000)
     }
 
-    const handleGameOver = ({ winnerId, players, lives }) => {
+    const handleGameOver = ({ winnerId, players, lives, gameLogs }) => {
       // New
       setGameOver(true)
 
       // Old
       setPlayers(movePlayerToFront(players, socket.id))
       setLives(lives)
+      setGameLogs(gameLogs)
 
       const isDraw = winnerId === 'draw'
       const winnerChoice = isDraw ? choice : players.find((player) => player.id === winnerId)?.choice
@@ -316,7 +324,9 @@ const RoomPage = ({ params }) => {
       <div className='text-gold mb-4 flex flex-wrap justify-between rounded-lg bg-[#262626] p-4 md:mb-6'>
         {players.map((player) => (
           <div key={player.id} className='mb-2 w-full md:mb-0 md:w-auto'>
-            <span className='font-semibold'>{player.name}</span>
+            <span className='font-semibold'>
+              {player.name}: {10 - lives[player.id === currentPlayer?.id ? currentOpponent?.id : currentPlayer?.id]}
+            </span>
             <div className='flex'>{renderHearts(lives[player?.id])}</div>
           </div>
         ))}
@@ -334,6 +344,7 @@ const RoomPage = ({ params }) => {
             disabled={choice || players.length < 2}
           >
             {icon}
+            <span className={'hidden pt-4 font-bold capitalize md:block'}>{name}</span>
           </button>
         ))}
       </div>
@@ -374,39 +385,59 @@ const RoomPage = ({ params }) => {
         </div>
       )}
 
-      {/* Chat Box */}
-      <div className='!mt-auto flex flex-col rounded-lg bg-[#262626] p-4 md:mt-12'>
-        <div className='text-gold mb-4 text-lg font-semibold'>Chat</div>
-        <div className='text-gold flex h-64 flex-col-reverse overflow-y-auto rounded-lg bg-[#333] p-4'>
-          {messages
-            .slice(0)
-            .reverse()
-            .map((msg, index) => (
-              <div key={index} className='mb-2'>
-                <span className='font-semibold'>{msg.playerName}:</span> {msg.message}
-              </div>
-            ))}
+      <div className='!mt-auto flex flex-col gap-4 md:mt-12 md:flex-row'>
+        {/* Chat Box */}
+        <div className='flex-2 flex basis-2/4 flex-col rounded-lg bg-[#262626] p-4'>
+          <div className='text-gold mb-4 text-lg font-semibold'>Chat</div>
+          <div className='text-gold flex h-64 flex-col-reverse overflow-y-auto rounded-lg bg-[#333] p-4'>
+            {messages
+              .slice(0)
+              .reverse()
+              .map((msg, index) => (
+                <div key={index} className='mb-2'>
+                  <span className='font-semibold'>{msg.playerName}:</span> {msg.message}
+                </div>
+              ))}
+          </div>
+          <div className='mt-4 flex'>
+            <input
+              type='text'
+              ref={inputRef}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              className='flex-grow rounded-lg bg-[#333] px-4 py-2 text-white'
+              placeholder='Type a message...'
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleSendMessage()
+                }
+              }}
+            />
+            <button
+              onClick={handleSendMessage}
+              className='ml-2 rounded-lg bg-purple-600 px-4 py-2 text-white hover:bg-purple-700'
+            >
+              Send
+            </button>
+          </div>
         </div>
-        <div className='mt-4 flex'>
-          <input
-            type='text'
-            ref={inputRef}
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            className='flex-grow rounded-lg bg-[#333] px-4 py-2 text-white'
-            placeholder='Type a message...'
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                handleSendMessage()
-              }
-            }}
-          />
-          <button
-            onClick={handleSendMessage}
-            className='ml-2 rounded-lg bg-purple-600 px-4 py-2 text-white hover:bg-purple-700'
-          >
-            Send
-          </button>
+
+        {/* Game Log */}
+        <div className='flex flex-1 flex-col rounded-lg bg-[#262626] p-4'>
+          <div className='text-gold mb-4 text-lg font-semibold'>Game Log</div>
+          <div className='text-gold flex h-64 flex-grow flex-col-reverse overflow-y-auto rounded-lg bg-[#333] p-4'>
+            {gameLogs
+              .slice(0)
+              .reverse()
+              .map((gamelog, index) => (
+                <div
+                  key={index}
+                  className={`mb-2 ${gamelog?.includes(currentPlayer?.name) ? 'text-green-500' : 'text-red-500'}`}
+                >
+                  {gamelog}
+                </div>
+              ))}
+          </div>
         </div>
       </div>
     </div>

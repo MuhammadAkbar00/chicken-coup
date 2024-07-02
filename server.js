@@ -59,6 +59,13 @@ app.prepare().then(() => {
     }
   }
 
+  // Function to get which one is the player and which one is the opponent
+  function getPlayers(players, socketId) {
+    const currentPlayer = players.find((p) => p.id === socketId)
+    const currentOpponent = players.find((p) => p.id !== socketId)
+    return { currentPlayer, currentOpponent }
+  }
+
   io.on('connection', (socket) => {
     console.log('a user connected:', socket.id)
 
@@ -71,14 +78,44 @@ app.prepare().then(() => {
         if (room.players.every((p) => p.choice)) {
           const [player1, player2] = room.players
           const { winnerId, loserId, draw } = getResult(player1, player2)
+
+          const { currentPlayer, currentOpponent } = getPlayers(room.players, socket.id)
+
+          room.gameLogs?.push(`${currentPlayer?.name} chose ${currentPlayer?.choice}.`)
+          room.gameLogs?.push(`${currentOpponent?.name} chose ${currentOpponent?.choice}.`)
+
           if (!draw) {
             room.lives[loserId]--
+
+            if (winnerId === currentPlayer?.id) {
+              room.gameLogs?.push(`${currentPlayer?.name} won!`)
+            }
+
+            if (winnerId === currentOpponent?.id) {
+              room.gameLogs?.push(`${currentOpponent?.name} won!`)
+            }
+          } else {
+            room.gameLogs?.push(`This round was a draw!`)
           }
 
           if (Object.values(room.lives).some((life) => life <= 0)) {
-            io.to(room.code).emit('game-over', { winnerId, players: room.players, lives: room.lives })
+            if (winnerId === currentPlayer?.id) {
+              room.gameLogs?.push(`${currentPlayer?.name} has won the game!`)
+            }
+            io.to(room.code).emit('game-over', {
+              winnerId,
+              players: room.players,
+              lives: room.lives,
+              gameLogs: room.gameLogs
+            })
           } else {
-            io.to(room.code).emit('result', { winnerId, players: room.players, lives: room.lives, draw })
+            io.to(room.code).emit('result', {
+              winnerId,
+              players: room.players,
+              lives: room.lives,
+              draw,
+              gameLogs: room.gameLogs
+            })
           }
           room.players.forEach((p) => (p.choice = null)) // Reset choices
         }
@@ -92,7 +129,8 @@ app.prepare().then(() => {
           messages: [],
           players: [{ id: socket.id, name: playerName, choice: null }],
           lives: { [socket.id]: startingLives },
-          rematchRequests: []
+          rematchRequests: [],
+          gameLogs: [`${playerName} created the room.`, `${playerName} joined the room.`]
         }
 
         socket.join(roomCode)
@@ -110,7 +148,8 @@ app.prepare().then(() => {
           players: [],
           lives: {},
           messages: [],
-          rematchRequests: []
+          rematchRequests: [],
+          gameLogs: []
         }
       }
 
@@ -119,12 +158,14 @@ app.prepare().then(() => {
 
         rooms[roomCode].players.push(newPlayer)
         rooms[roomCode].lives[socket.id] = startingLives // Initialize lives
+        rooms[roomCode].gameLogs?.push(`${playerName} joined the room.`)
 
         socket.join(roomCode)
         io.to(roomCode).emit('player-joined', {
           player: newPlayer,
           players: rooms[roomCode].players,
-          lives: rooms[roomCode].lives
+          lives: rooms[roomCode].lives,
+          gameLogs: rooms[roomCode].gameLogs
         })
         io.emit('room-updated', rooms)
 
@@ -162,6 +203,8 @@ app.prepare().then(() => {
       if (room) {
         if (!room.rematchRequests) room.rematchRequests = []
         room.rematchRequests.push(socket.id)
+        const playerName = room?.players?.find((player) => player.id === socket.id)?.name
+        room?.gameLogs?.push(`${playerName} requested a rematch.`)
 
         io.to(roomCode).emit('rematch-requested', { playerId: socket.id })
 
@@ -179,6 +222,8 @@ app.prepare().then(() => {
       const room = rooms[roomCode]
       if (room) {
         room.players = room.players.filter((p) => p.id !== socket.id)
+        const playerName = room?.players?.find((player) => player.id === socket.id)?.name
+        room?.gameLogs?.push(`${playerName} has left.`)
         socket.leave(roomCode)
         io.to(roomCode).emit('player-left', { playerId: socket.id, players: room.players })
         if (room.players.length === 0) {
@@ -198,6 +243,8 @@ app.prepare().then(() => {
         const playerIndex = room.players.findIndex((p) => p.id === socket.id)
         if (playerIndex !== -1) {
           room.players.splice(playerIndex, 1)
+          const playerName = room?.players?.find((player) => player.id === socket.id)?.name
+          room?.gameLogs?.push(`${playerName} has left.`)
           io.to(roomCode).emit('player-left', { playerId: socket.id, players: room.players })
           if (room.players.length === 0) {
             delete rooms[roomCode]
@@ -224,7 +271,7 @@ app.prepare().then(() => {
     const roomCode = req.params.roomCode
     const room = rooms[roomCode]
     if (room) {
-      res.json({ players: room.players, lives: room.lives })
+      res.json({ players: room.players, lives: room.lives, gameLogs: room.gameLogs })
     } else {
       res.status(404).json({ error: 'Room not found' })
     }
