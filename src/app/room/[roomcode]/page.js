@@ -294,7 +294,6 @@ const RoomPage = ({ params }) => {
   }
 
   const renderHearts = (numOfLives) => {
-    console.log(numOfLives, 'numOfLives')
     const totalLives = 10
     return (
       <>
@@ -318,7 +317,6 @@ const RoomPage = ({ params }) => {
         {players.map((player) => (
           <div key={player.id} className='mb-2 w-full md:mb-0 md:w-auto'>
             <span className='font-semibold'>{player.name}</span>
-            {console.log(lives, 'player')}
             <div className='flex'>{renderHearts(lives[player?.id])}</div>
           </div>
         ))}
