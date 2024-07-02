@@ -96,6 +96,11 @@ const RoomEntry = () => {
               type='text'
               value={name}
               onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleNameSubmit()
+                }
+              }}
               placeholder='Your name'
               className='w-full rounded-lg border border-gray-300 px-3 py-2 text-black focus:border-blue-500 focus:outline-none'
             />
@@ -115,6 +120,11 @@ const RoomEntry = () => {
               type='text'
               value={roomCode}
               onChange={(e) => setRoomCode(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleCreateRoom()
+                }
+              }}
               placeholder='Room code'
               className='w-full rounded-lg border border-gray-300 px-3 py-2 text-black focus:border-blue-500 focus:outline-none'
             />

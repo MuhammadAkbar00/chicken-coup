@@ -66,6 +66,7 @@ const RoomPage = ({ params }) => {
   const [rematchRequested, setRematchRequested] = useState(false)
   const [opponentRematchRequested, setOpponentRematchRequested] = useState(false)
   const [opponentExited, setOpponentExited] = useState(false)
+  const [gameOver, setGameOver] = useState(false)
   const [winningPair, setWinningPair] = useState({ winner: '', loser: '' })
 
   const [currentPlayer, setCurrentPlayer] = useState({})
@@ -97,7 +98,6 @@ const RoomPage = ({ params }) => {
     }
 
     const handlePlayerJoined = ({ players, lives }) => {
-      console.log({ players, lives })
       setPlayers(players)
       setLives(lives)
     }
@@ -112,9 +112,30 @@ const RoomPage = ({ params }) => {
 
       setWinningPair({ winner: winnerChoice, loser: loserChoice })
       setResult(winnerId === socket.id ? 'You win!' : winnerId === 'draw' ? "It's a draw!" : 'You lose!')
+
+      setTimeout(() => {
+        socket.emit('continue-game', roomCode)
+      }, 1000)
+    }
+
+    const handleGameOver = ({ winnerId, players, lives }) => {
+      // New
+      setGameOver(true)
+
+      // Old
+      setPlayers(movePlayerToFront(players, socket.id))
+      setLives(lives)
+
+      const isDraw = winnerId === 'draw'
+      const winnerChoice = isDraw ? choice : players.find((player) => player.id === winnerId)?.choice
+      const loserChoice = isDraw ? choice : players.find((player) => player.id !== winnerId)?.choice
+
+      setWinningPair({ winner: winnerChoice, loser: loserChoice })
+      setResult(winnerId === socket.id ? 'You win!' : winnerId === 'draw' ? "It's a draw!" : 'You lose!')
     }
 
     const handlePlayerLeft = ({ players }) => setPlayers(movePlayerToFront(players, socket.id))
+
     const handleStartGame = () => {
       setChoice('')
       setResult('')
@@ -122,9 +143,22 @@ const RoomPage = ({ params }) => {
       setOpponentRematchRequested(false)
     }
 
-    const handleRematch = () => {
+    const handleNextMove = () => {
       setChoice('')
       setResult('')
+    }
+
+    const handleRematch = ({ startingLives }) => {
+      setGameOver(false)
+      setChoice('')
+      setResult('')
+      setLives((prevLives) => {
+        const updatedLives = {}
+        Object.keys(prevLives).forEach((playerId) => {
+          updatedLives[playerId] = startingLives
+        })
+        return updatedLives
+      })
     }
 
     const handleRematchRequested = ({ playerId }) => {
@@ -153,19 +187,23 @@ const RoomPage = ({ params }) => {
 
     socket.on('player-joined', handlePlayerJoined)
     socket.on('result', handleResult)
+    socket.on('game-over', handleGameOver)
     socket.on('player-left', handlePlayerLeft)
     socket.on('start-game', handleStartGame)
-    socket.on('rematch', handleRematch)
+    socket.on('next-move', handleNextMove)
     socket.on('rematch-requested', handleRematchRequested)
+    socket.on('rematch', handleRematch)
     socket.on('player-exit', handlePlayerExit)
 
     return () => {
       socket.off('player-joined', handlePlayerJoined)
       socket.off('result', handleResult)
+      socket.off('game-over', handleGameOver)
       socket.off('player-left', handlePlayerLeft)
       socket.off('start-game', handleStartGame)
-      socket.off('rematch', handleRematch)
+      socket.off('next-move', handleNextMove)
       socket.off('rematch-requested', handleRematchRequested)
+      socket.off('rematch', handleRematch)
       socket.off('player-exit', handlePlayerExit)
       //
       socket.off('chat-messages')
@@ -193,13 +231,6 @@ const RoomPage = ({ params }) => {
   const exitRoom = () => {
     socket.emit('exit-room', roomCode)
     router.push('/')
-  }
-
-  const renderPlayerChoice = (playerId) => {
-    const playerChoice = result ? players.find((player) => player.id === playerId)?.choice : choice
-    const icon = choices.find((item) => item.name === playerChoice)?.icon
-
-    return icon ? React.cloneElement(icon, { size: 200 }) : null
   }
 
   const getIcon = (playerChoice) => {
@@ -238,13 +269,10 @@ const RoomPage = ({ params }) => {
     let animationVariants
     if (isDraw) {
       animationVariants = animationVariantsDraw
-      console.log('draw')
     } else if (didPlayerWin === true) {
       animationVariants = animationVariantsWin
-      console.log('win')
     } else if (didPlayerWin === false) {
       animationVariants = animationVariantsLose
-      console.log('lose')
     }
 
     return (
@@ -283,7 +311,7 @@ const RoomPage = ({ params }) => {
         {players.map((player) => (
           <div key={player.id} className='mb-2 w-full md:mb-0 md:w-auto'>
             <span className='font-semibold'>{player.name}</span>
-            <div className='flex'>{renderHearts(lives[player.id])}</div>
+            <div className='flex'>{renderHearts(lives[player?.id])}</div>
           </div>
         ))}
       </div>
@@ -312,7 +340,7 @@ const RoomPage = ({ params }) => {
 
           {/* Rematch Buttons */}
           <div className='mt-8 flex flex-wrap gap-4 self-center md:gap-6'>
-            {!rematchRequested && !opponentExited && !opponentRematchRequested && (
+            {!rematchRequested && !opponentExited && !opponentRematchRequested && gameOver && (
               <button
                 className='rounded-lg bg-purple-600 px-4 py-2 text-white hover:bg-purple-700'
                 onClick={handleRematchRequest}
@@ -320,7 +348,7 @@ const RoomPage = ({ params }) => {
                 Request Rematch
               </button>
             )}
-            {opponentRematchRequested && (
+            {opponentRematchRequested && gameOver && (
               <button
                 className='rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700'
                 onClick={handleRematchRequest}
@@ -328,12 +356,14 @@ const RoomPage = ({ params }) => {
                 Accept Rematch
               </button>
             )}
-            {opponentExited && (
+            {opponentExited && gameOver && (
               <div className='rounded-lg bg-red-600 px-4 py-2 text-white'>Opponent has left the room</div>
             )}
-            <button className='rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700' onClick={exitRoom}>
-              Exit Room
-            </button>
+            {gameOver && (
+              <button className='rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700' onClick={exitRoom}>
+                Exit Room
+              </button>
+            )}
           </div>
         </div>
       )}

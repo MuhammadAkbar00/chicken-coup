@@ -8,7 +8,7 @@ const app = next({ dev })
 const handle = app.getRequestHandler()
 
 const getResult = (player1, player2) => {
-  if (player1.choice === player2.choice) return 'draw'
+  if (player1.choice === player2.choice) return { winnerId: 'draw', loserId: 'draw', draw: true }
 
   const winsAgainst = {
     rock: ['scissors', 'ant'],
@@ -19,9 +19,9 @@ const getResult = (player1, player2) => {
   }
 
   if (winsAgainst[player1.choice].includes(player2.choice)) {
-    return { winnerId: player1.id, loserId: player2.id }
+    return { winnerId: player1.id, loserId: player2.id, draw: false }
   }
-  return { winnerId: player2.id, loserId: player1.id }
+  return { winnerId: player2.id, loserId: player1.id, draw: false }
 }
 
 app.prepare().then(() => {
@@ -49,6 +49,16 @@ app.prepare().then(() => {
     }
   }
 
+  // Function to reset lives to 10 for all players in a room
+  function resetLives(roomCode) {
+    const room = rooms[roomCode]
+    if (room) {
+      Object.keys(room.lives).forEach((playerId) => {
+        room.lives[playerId] = startingLives
+      })
+    }
+  }
+
   io.on('connection', (socket) => {
     console.log('a user connected:', socket.id)
 
@@ -60,12 +70,16 @@ app.prepare().then(() => {
 
         if (room.players.every((p) => p.choice)) {
           const [player1, player2] = room.players
-          const { winnerId, loserId } = getResult(player1, player2)
-          if (winnerId !== 'draw') {
+          const { winnerId, loserId, draw } = getResult(player1, player2)
+          if (!draw) {
             room.lives[loserId]--
           }
-          console.log(room.players, 'room.players')
-          io.to(room.code).emit('result', { winnerId, players: room.players, lives: room.lives })
+
+          if (Object.values(room.lives).some((life) => life <= 0)) {
+            io.to(room.code).emit('game-over', { winnerId, players: room.players, lives: room.lives })
+          } else {
+            io.to(room.code).emit('result', { winnerId, players: room.players, lives: room.lives, draw })
+          }
           room.players.forEach((p) => (p.choice = null)) // Reset choices
         }
       }
@@ -131,6 +145,18 @@ app.prepare().then(() => {
       })
     })
 
+    socket.on('continue-game', (roomCode) => {
+      const room = rooms[roomCode]
+      if (room) {
+        if (!Object.values(room.lives).some((life) => life <= 0)) {
+          io.to(roomCode).emit('next-move', roomCode)
+          startGame(roomCode)
+        }
+      } else {
+        console.log('CANNOT REMATCH AS ONE PERSON IS DEAD')
+      }
+    })
+
     socket.on('rematch', (roomCode) => {
       const room = rooms[roomCode]
       if (room) {
@@ -141,7 +167,9 @@ app.prepare().then(() => {
 
         if (room.rematchRequests.length === maxPlayersPerRoom) {
           room.rematchRequests = []
-          io.to(roomCode).emit('rematch', roomCode)
+          // Reset lives to 10 for all players
+          resetLives(roomCode)
+          io.to(roomCode).emit('rematch', { startingLives })
           startGame(roomCode)
         }
       }
