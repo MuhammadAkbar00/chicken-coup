@@ -224,7 +224,7 @@ app.prepare().then(() => {
     const roomCode = req.params.roomCode
     const room = rooms[roomCode]
     if (room) {
-      res.json(room.players)
+      res.json({ players: room.players, lives: room.lives })
     } else {
       res.status(404).json({ error: 'Room not found' })
     }

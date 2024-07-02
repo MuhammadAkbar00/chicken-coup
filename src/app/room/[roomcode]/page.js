@@ -82,15 +82,14 @@ const RoomPage = ({ params }) => {
     const fetchPlayers = async () => {
       try {
         const res = await fetch(`/api/rooms/${roomCode}/players`)
-        const data = await res.json()
+        const { players, lives } = await res.json()
 
-        if (!data.find((player) => player.id === socket.id)) {
+        if (!players.find((player) => player.id === socket.id)) {
           router.push('/')
         }
 
-        const players = [...data]
-
         setPlayers(movePlayerToFront(players, socket.id))
+        setLives(lives)
       } catch (error) {
         console.error('Failed to fetch players:', error)
         router.push('/')
@@ -218,6 +217,13 @@ const RoomPage = ({ params }) => {
     }
   }, [players])
 
+  useEffect(() => {
+    // Scroll to bottom on new message
+    if (inputRef.current) {
+      inputRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [messages])
+
   const handleChoice = (choice) => {
     setChoice(choice)
     socket.emit('choose', choice)
@@ -288,6 +294,7 @@ const RoomPage = ({ params }) => {
   }
 
   const renderHearts = (numOfLives) => {
+    console.log(numOfLives, 'numOfLives')
     const totalLives = 10
     return (
       <>
@@ -311,6 +318,7 @@ const RoomPage = ({ params }) => {
         {players.map((player) => (
           <div key={player.id} className='mb-2 w-full md:mb-0 md:w-auto'>
             <span className='font-semibold'>{player.name}</span>
+            {console.log(lives, 'player')}
             <div className='flex'>{renderHearts(lives[player?.id])}</div>
           </div>
         ))}
@@ -372,11 +380,14 @@ const RoomPage = ({ params }) => {
       <div className='!mt-auto flex flex-col rounded-lg bg-[#262626] p-4 md:mt-12'>
         <div className='text-gold mb-4 text-lg font-semibold'>Chat</div>
         <div className='text-gold flex h-64 flex-col-reverse overflow-y-auto rounded-lg bg-[#333] p-4'>
-          {messages.map((msg, index) => (
-            <div key={index} className='mb-2'>
-              <span className='font-semibold'>{msg.sender}:</span> {msg.message}
-            </div>
-          ))}
+          {messages
+            .slice(0)
+            .reverse()
+            .map((msg, index) => (
+              <div key={index} className='mb-2'>
+                <span className='font-semibold'>{msg.playerName}:</span> {msg.message}
+              </div>
+            ))}
         </div>
         <div className='mt-4 flex'>
           <input
@@ -386,6 +397,11 @@ const RoomPage = ({ params }) => {
             onChange={(e) => setMessage(e.target.value)}
             className='flex-grow rounded-lg bg-[#333] px-4 py-2 text-white'
             placeholder='Type a message...'
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                handleSendMessage()
+              }
+            }}
           />
           <button
             onClick={handleSendMessage}
