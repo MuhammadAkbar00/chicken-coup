@@ -64,7 +64,8 @@ const Leaderboard = () => {
                     {entry.losingPlayerName}
                   </td>
                   <td className='whitespace-nowrap px-4 py-4 text-xs font-medium text-gray-300 md:px-6 md:text-sm'>
-                    {entry.winningPlayerLives} - {entry.losingPlayerLives}
+                    {/* This is for lives converting to scores */}
+                    {10 - entry.losingPlayerLives} - {10 - entry.winningPlayerLives}
                   </td>
                 </tr>
               ))}
