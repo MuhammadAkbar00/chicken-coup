@@ -149,6 +149,12 @@ const RoomEntry = () => {
               Play Impossible bot
             </button>
           </div>
+          <button
+            onClick={() => router.push('/leaderboards')}
+            className='mt-2 w-full rounded-lg bg-green-500 px-4 py-2 text-white hover:bg-green-700 focus:bg-green-700 focus:outline-none'
+          >
+            Leaderboards
+          </button>
           <div className='mt-6'>
             <h3 className='mb-4 text-xl font-semibold'>Available Rooms</h3>
             <ul>

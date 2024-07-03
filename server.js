@@ -1,7 +1,10 @@
+require('dotenv').config() // Add this line at the top
+
 const express = require('express')
 const next = require('next')
 const http = require('http')
 const { Server } = require('socket.io')
+const supabase = require('./src/app/lib/supabase')
 
 const dev = process.env.NODE_ENV !== 'production'
 const app = next({ dev })
@@ -66,10 +69,10 @@ app.prepare().then(() => {
     return { currentPlayer, currentOpponent }
   }
 
-  io.on('connection', (socket) => {
+  io.on('connection', async (socket) => {
     console.log('a user connected:', socket.id)
 
-    socket.on('choose', (choice) => {
+    socket.on('choose', async (choice) => {
       const room = Object.values(rooms).find((r) => r.players.some((p) => p.id === socket.id))
       if (room) {
         const player = room.players.find((p) => p.id === socket.id)
@@ -101,6 +104,20 @@ app.prepare().then(() => {
           if (Object.values(room.lives).some((life) => life <= 0)) {
             if (winnerId === currentPlayer?.id) {
               room.gameLogs?.push(`${currentPlayer?.name} has won the game!`)
+              await supabase.from('leaderboards').insert({
+                winningPlayerName: currentPlayer?.name,
+                winningPlayerLives: room.lives[currentPlayer?.id],
+                losingPlayerName: currentOpponent?.name,
+                losingPlayerLives: room.lives[currentOpponent?.id]
+              })
+            } else {
+              room.gameLogs?.push(`${currentOpponent?.name} has won the game!`)
+              await supabase.from('leaderboards').insert({
+                winningPlayerName: currentOpponent?.name,
+                winningPlayerLives: room.lives[currentOpponent?.id],
+                losingPlayerName: currentPlayer?.name,
+                losingPlayerLives: room.lives[currentPlayer?.id]
+              })
             }
             io.to(room.code).emit('game-over', {
               winnerId,
