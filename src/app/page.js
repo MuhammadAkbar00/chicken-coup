@@ -70,7 +70,6 @@ const RoomEntry = () => {
     if (name && botType) {
       socket.emit('create-room', null, name, botType, (response) => {
         if (response.success) {
-          console.log(response.roomCode, 'roomcode hee')
           router.push(`/room/${response.roomCode}`)
         } else {
           alert(response.message)

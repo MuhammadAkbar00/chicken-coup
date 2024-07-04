@@ -87,7 +87,6 @@ const RoomPage = ({ params }) => {
       try {
         const res = await fetch(`/api/rooms/${roomCode}/players`)
         const { players, lives, gameLogs } = await res.json()
-        console.log({ players, lives, gameLogs })
 
         if (!players.find((player) => player.id === socket.id)) {
           router.push('/')

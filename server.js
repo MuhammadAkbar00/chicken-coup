@@ -40,7 +40,6 @@ app.prepare().then(() => {
 
   function startGame(roomcode) {
     io.to(roomcode).emit('start-game', roomcode)
-    console.log(`Starting game in room ${roomcode}`)
   }
 
   // Function to send chat messages
@@ -200,7 +199,6 @@ app.prepare().then(() => {
         }
 
         socket.join(createdRoomCode)
-        console.log('created room code', createdRoomCode)
         callback({ success: true, roomCode: createdRoomCode })
         io.emit('room-updated', rooms)
       } else {
@@ -339,9 +337,7 @@ app.prepare().then(() => {
   server.get('/api/rooms/:roomCode/players', (req, res) => {
     const roomCode = req.params.roomCode
     const room = rooms[roomCode]
-    console.log('runnininging', room)
     if (room) {
-      console.log(room, 'room')
       res.json({ players: room.players, lives: room.lives, gameLogs: room.gameLogs })
     } else {
       res.status(404).json({ error: 'Room not found' })
