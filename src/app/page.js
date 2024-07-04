@@ -56,7 +56,7 @@ const RoomEntry = () => {
 
   const handleCreateRoom = () => {
     if (name && roomCode) {
-      socket.emit('create-room', roomCode, name, (response) => {
+      socket.emit('create-room', roomCode, name, null, (response) => {
         if (response.success) {
           router.push(`/room/${response.roomCode}`)
         } else {
