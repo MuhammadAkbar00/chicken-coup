@@ -69,6 +69,28 @@ app.prepare().then(() => {
     return { currentPlayer, currentOpponent }
   }
 
+  const getBotChoice = (botType, opponentChoice, botLives) => {
+    const choices = ['rock', 'paper', 'scissors', 'dragon', 'ant']
+    if (botType === 'impossible') {
+      return choices[Math.floor(Math.random() * choices.length)]
+    } else if (botType === 'easy') {
+      const winningChoices = {
+        rock: 'paper',
+        paper: 'scissors',
+        scissors: 'rock',
+        dragon: 'ant',
+        ant: 'rock' // Ant beats Dragon, so to be unbeatable, choose Rock
+      }
+
+      // Its normal until the bot has 1 life left then they will always win
+      if (botLives > 1) {
+        return choices[Math.floor(Math.random() * choices.length)]
+      } else {
+        return winningChoices[opponentChoice]
+      }
+    }
+  }
+
   io.on('connection', async (socket) => {
     console.log('a user connected:', socket.id)
 
@@ -77,6 +99,16 @@ app.prepare().then(() => {
       if (room) {
         const player = room.players.find((p) => p.id === socket.id)
         player.choice = choice
+
+        // Determine bot choice if a bot is in the room
+        const botPlayer = room.players.find((p) => p.id.startsWith('bot_'))
+        if (botPlayer && !botPlayer.choice) {
+          botPlayer.choice = getBotChoice(
+            botPlayer.name === 'Easy Bot' ? 'easy' : 'impossible',
+            player.choice,
+            room.lives[botPlayer.id]
+          )
+        }
 
         if (room.players.every((p) => p.choice)) {
           const [player1, player2] = room.players
@@ -104,20 +136,24 @@ app.prepare().then(() => {
           if (Object.values(room.lives).some((life) => life <= 0)) {
             if (winnerId === currentPlayer?.id) {
               room.gameLogs?.push(`${currentPlayer?.name} has won the game!`)
-              await supabase.from('leaderboards').insert({
-                winningPlayerName: currentPlayer?.name,
-                winningPlayerLives: room.lives[currentPlayer?.id],
-                losingPlayerName: currentOpponent?.name,
-                losingPlayerLives: room.lives[currentOpponent?.id]
-              })
+              if (!currentOpponent?.id?.startsWith('bot_')) {
+                await supabase.from('leaderboards').insert({
+                  winningPlayerName: currentPlayer?.name,
+                  winningPlayerLives: room.lives[currentPlayer?.id],
+                  losingPlayerName: currentOpponent?.name,
+                  losingPlayerLives: room.lives[currentOpponent?.id]
+                })
+              }
             } else {
               room.gameLogs?.push(`${currentOpponent?.name} has won the game!`)
-              await supabase.from('leaderboards').insert({
-                winningPlayerName: currentOpponent?.name,
-                winningPlayerLives: room.lives[currentOpponent?.id],
-                losingPlayerName: currentPlayer?.name,
-                losingPlayerLives: room.lives[currentPlayer?.id]
-              })
+              if (!currentOpponent?.id?.startsWith('bot_')) {
+                await supabase.from('leaderboards').insert({
+                  winningPlayerName: currentOpponent?.name,
+                  winningPlayerLives: room.lives[currentOpponent?.id],
+                  losingPlayerName: currentPlayer?.name,
+                  losingPlayerLives: room.lives[currentPlayer?.id]
+                })
+              }
             }
             io.to(room.code).emit('game-over', {
               winnerId,
@@ -139,10 +175,12 @@ app.prepare().then(() => {
       }
     })
 
-    socket.on('create-room', (roomCode, playerName, callback) => {
-      if (!rooms[roomCode]) {
-        rooms[roomCode] = {
-          code: roomCode,
+    socket.on('create-room', (roomCode, playerName, botType, callback) => {
+      const createdRoomCode = botType ? Math.random().toString(36).substring(2, 8) : roomCode
+
+      if (!rooms[createdRoomCode]) {
+        rooms[createdRoomCode] = {
+          code: createdRoomCode,
           messages: [],
           players: [{ id: socket.id, name: playerName, choice: null }],
           lives: { [socket.id]: startingLives },
@@ -150,8 +188,20 @@ app.prepare().then(() => {
           gameLogs: [`${playerName} created the room.`, `${playerName} joined the room.`]
         }
 
-        socket.join(roomCode)
-        callback({ success: true, roomCode })
+        if (botType) {
+          const botId = `bot_${createdRoomCode}`
+          rooms[createdRoomCode].players.push({
+            id: botId,
+            name: botType === 'easy' ? 'Easy Bot' : 'Impossible Bot',
+            choice: null
+          })
+          rooms[createdRoomCode].lives[botId] = startingLives
+          rooms[createdRoomCode].gameLogs.push(`${botType === 'easy' ? 'Easy Bot' : 'Impossible Bot'} joined the room.`)
+        }
+
+        socket.join(createdRoomCode)
+        console.log('created room code', createdRoomCode)
+        callback({ success: true, roomCode: createdRoomCode })
         io.emit('room-updated', rooms)
       } else {
         callback({ success: false, message: 'Room code already exists. Please choose another one.' })
@@ -238,15 +288,16 @@ app.prepare().then(() => {
     socket.on('exit-room', (roomCode) => {
       const room = rooms[roomCode]
       if (room) {
-        room.players = room.players.filter((p) => p.id !== socket.id)
         const playerName = room?.players?.find((player) => player.id === socket.id)?.name
         room?.gameLogs?.push(`${playerName} has left.`)
+
         socket.leave(roomCode)
-        io.to(roomCode).emit('player-left', { playerId: socket.id, players: room.players })
-        if (room.players.length === 0) {
+        room.players = room.players.filter((p) => p.id !== socket.id)
+
+        if (room.players.length === 0 || room.players.every((p) => p.id.startsWith('bot_'))) {
           delete rooms[roomCode]
         } else {
-          io.to(roomCode).emit('player-exit', { playerId: socket.id })
+          io.to(roomCode).emit('player-left', { playerId: socket.id, players: room.players })
         }
         io.emit('room-updated', rooms)
       }
@@ -259,14 +310,15 @@ app.prepare().then(() => {
         const room = rooms[roomCode]
         const playerIndex = room.players.findIndex((p) => p.id === socket.id)
         if (playerIndex !== -1) {
-          room.players.splice(playerIndex, 1)
           const playerName = room?.players?.find((player) => player.id === socket.id)?.name
           room?.gameLogs?.push(`${playerName} has left.`)
-          io.to(roomCode).emit('player-left', { playerId: socket.id, players: room.players })
-          if (room.players.length === 0) {
+
+          room.players.splice(playerIndex, 1)
+
+          if (room.players.length === 0 || room.players.every((p) => p.id.startsWith('bot_'))) {
             delete rooms[roomCode]
           } else {
-            io.to(roomCode).emit('player-exit', { playerId: socket.id })
+            io.to(roomCode).emit('player-left', { playerId: socket.id, players: room.players })
           }
           io.emit('room-updated', rooms)
         }
@@ -287,7 +339,9 @@ app.prepare().then(() => {
   server.get('/api/rooms/:roomCode/players', (req, res) => {
     const roomCode = req.params.roomCode
     const room = rooms[roomCode]
+    console.log('runnininging', room)
     if (room) {
+      console.log(room, 'room')
       res.json({ players: room.players, lives: room.lives, gameLogs: room.gameLogs })
     } else {
       res.status(404).json({ error: 'Room not found' })

@@ -66,10 +66,11 @@ const RoomEntry = () => {
     }
   }
 
-  const handlePlayWithBots = () => {
-    if (name && roomCode) {
-      socket.emit('create-room', roomCode, name, (response) => {
+  const handlePlayWithBots = (botType) => {
+    if (name && botType) {
+      socket.emit('create-room', null, name, botType, (response) => {
         if (response.success) {
+          console.log(response.roomCode, 'roomcode hee')
           router.push(`/room/${response.roomCode}`)
         } else {
           alert(response.message)
@@ -137,13 +138,13 @@ const RoomEntry = () => {
           </button>
           <div className='flex gap-2 pt-2'>
             <button
-              onClick={handleCreateRoom}
+              onClick={() => handlePlayWithBots('easy')}
               className='w-full rounded-lg bg-green-500 px-4 py-2 text-white hover:bg-green-700 focus:bg-green-700 focus:outline-none'
             >
               Play Easy bot
             </button>
             <button
-              onClick={handleCreateRoom}
+              onClick={() => handlePlayWithBots('impossible')}
               className='w-full rounded-lg bg-green-500 px-4 py-2 text-white hover:bg-green-700 focus:bg-green-700 focus:outline-none'
             >
               Play Impossible bot
